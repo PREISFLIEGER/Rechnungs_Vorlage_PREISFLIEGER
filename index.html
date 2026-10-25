@@ -358,7 +358,6 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
     <section><h2>Rechnung</h2><div class="sheet">
       <div class="grid two">
         <label class="f">Nummernformat<input id="s-nrformat" data-s="nummernFormat"></label>
-        <label class="f">Nummernformat Gutschrift<input id="s-gsformat" data-s="gsFormat" placeholder="GS_{JJ}_{N}"></label>
         <label class="f">Zuletzt vergebene Nummer<input id="s-lastnr" class="num"></label>
       </div>
       <p class="hint"><code>{JJ}</code> = Jahr zweistellig, <code>{JJJJ}</code> = vierstellig, <code>{N}</code> = laufende Nummer (<code>{NNN}</code> = immer 3 Stellen). Zum Jahreswechsel beginnt die Zählung wieder bei 1. Im Dateinamen steht <code>{NR}</code> für die Nummer und <code>{KUNDE}</code> für den Kundennamen.</p>
@@ -451,7 +450,7 @@ const DEFAULTS = {
   preisModus: 'netto', feedPreis: 'netto', standardUst: '20', skontoTage: '10', skontoProz: '',
   feedUrl: 'artikel.csv', nummernFormat: 'RE_{JJ}_{N}', dateiName: '{NR} {KUNDE}', bedingungen: BEDINGUNGEN,
   lagerPfad: 'PREISFLIEGER/Produktlisten/Produktliste',
-  gsFormat: 'GS_{JJ}_{N}', gsText: 'Der Gutschriftbetrag von {BETRAG} wird Ihnen überwiesen bzw. mit offenen Beträgen verrechnet.', gsBedingungen: '',
+  gsText: 'Der Gutschriftbetrag von {BETRAG} wird Ihnen überwiesen bzw. mit offenen Beträgen verrechnet.', gsBedingungen: '',
   od: { clientId: '3efe35a6-1e8c-4e5a-9afb-fd7e09a3fca7', ordner: 'Rechnungen', jahresOrdner: 'Preisflieger {JJJJ}',
         link: 'https://1drv.ms/f/c/cf660f8fc97bad14/IgBj1ZZZdngOQY13-ejuata2ASemxCEWKScN9_w_uQ0MNUg?e=rJMasQ', ziel: null },
   logo: 'img/logo-preisflieger-600.png', logo2: 'img/logo-recycled-600.png'
@@ -523,11 +522,11 @@ function parseNr(str, f = S.nummernFormat) {
   groups.forEach((g, i) => { const v = m[i + 1]; if (g === 'y4') jahr = +v; if (g === 'y2') jahr = 2000 + +v; if (g === 'n') n = +v; });
   return n == null ? null : { jahr, n };
 }
-// Zwei Nummernkreise: Rechnungen (RE_26_31 …) und Gutschriften (GS_26_1 …)
+// Ein gemeinsamer Nummernkreis: Rechnungen und Gutschriften laufen fortlaufend (RE_26_31, RE_26_32 …)
 const istGS = x => (x?.typ || 'rechnung') === 'gutschrift';
-const nrFormat = typ => typ === 'gutschrift' ? (S.gsFormat || 'GS_{JJ}_{N}') : S.nummernFormat;
+const nrFormat = () => S.nummernFormat;
 const hasYear = (typ = 'rechnung') => /\{JJ/.test(nrFormat(typ));
-function getCounter(typ = 'rechnung') { return typ === 'gutschrift' ? store.get('zaehlerGS', { jahr: 2026, n: 0 }) : store.get('zaehler', { jahr: 2026, n: 30 }); }
+function getCounter() { return store.get('zaehler', { jahr: 2026, n: 30 }); }
 function nextNr(typ = 'rechnung') {
   const y = new Date().getFullYear(); const z = getCounter(typ);
   const n = (!hasYear(typ) || z.jahr === y) ? z.n : 0;
@@ -536,7 +535,7 @@ function nextNr(typ = 'rechnung') {
 function bumpCounter(nr, typ = 'rechnung') {
   const p = parseNr(nr, nrFormat(typ)); if (!p) return;
   const y = p.jahr ?? new Date().getFullYear(); const z = getCounter(typ);
-  if (hasYear(typ) ? (y > z.jahr || (y === z.jahr && p.n > z.n)) : p.n > z.n) store.set(typ === 'gutschrift' ? 'zaehlerGS' : 'zaehler', { jahr: y, n: p.n });
+  if (hasYear(typ) ? (y > z.jahr || (y === z.jahr && p.n > z.n)) : p.n > z.n) store.set('zaehler', { jahr: y, n: p.n });
 }
 
 /* ---------- Rechnung (Entwurf) ---------- */
@@ -931,7 +930,7 @@ function renderTyp() {
 function setTyp(t) {
   if ((inv.typ || 'rechnung') === t) return;
   if (inv.saved) { toast('Diese Rechnung ist schon gespeichert. Für eine Gutschrift dazu: Verlauf → „Gutschrift“.', 'err', null, 6000); return; }
-  inv.typ = t; inv.nr = nextNr(t);
+  inv.typ = t;
   if (t === 'gutschrift') { inv.skonto = { proz: '', tage: inv.skonto?.tage ?? S.skontoTage }; } else { inv.bezug = ''; inv.bezugDatum = ''; }
   renderHead(); changed(false);
 }
@@ -1195,7 +1194,7 @@ function buildPdf(x = inv) {
   }
   return doc;
 }
-const pdfName = (x = inv) => safeName((S.dateiName || '{NR} {KUNDE}').replace(/\{NR\}/g, x.nr).replace(/\{KUNDE\}/g, x.kunde?.name || '')) + '.pdf';
+const pdfName = (x = inv) => safeName((S.dateiName || '{NR} {KUNDE}').replace(/\{NR\}/g, x.nr + (istGS(x) ? ' Gutschrift' : '')).replace(/\{KUNDE\}/g, x.kunde?.name || '')) + '.pdf';
 /* Logos für das PDF vorbereiten */
 const LOGO = {};
 function loadLogo(k) {
@@ -1279,7 +1278,7 @@ function renderHist() {
     const el = document.createElement('div'); el.className = 'h-item';
     el.innerHTML = `<span class="nr"></span><span class="k"></span><span class="b"></span><span class="d"></span>
       <div class="acts"><button class="btn small" data-a="open" type="button">Öffnen</button><button class="btn small" data-a="copy" type="button">Als Vorlage</button><button class="btn small" data-a="pdf" type="button">PDF</button><button class="btn small" data-a="gs" type="button">Gutschrift</button><button class="btn ghost small" data-a="del" type="button">Löschen</button></div>`;
-    el.querySelector('.nr').innerHTML = (istGS(h.inv) ? '<span class="typ">GS</span>' : '') + esc(h.nr); if (istGS(h.inv)) el.querySelector('[data-a=gs]').remove(); el.querySelector('.k').textContent = h.kunde; el.querySelector('.b').textContent = eur(h.brutto); el.querySelector('.d').textContent = dfmt(h.datum);
+    el.querySelector('.nr').innerHTML = (istGS(h.inv) ? '<span class="typ">Gutschrift</span>' : '') + esc(h.nr); if (istGS(h.inv)) el.querySelector('[data-a=gs]').remove(); el.querySelector('.k').textContent = h.kunde; el.querySelector('.b').textContent = (istGS(h.inv) ? '− ' : '') + eur(h.brutto); el.querySelector('.d').textContent = dfmt(h.datum);
     el.addEventListener('click', e => {
       const a = e.target.dataset.a; if (!a) return;
       if (a === 'open') { inv = JSON.parse(JSON.stringify(h.inv)); store.set('draft', inv); renderAll(); $('#dlg-hist').close(); }
@@ -1287,7 +1286,7 @@ function renderHist() {
       if (a === 'pdf') { download(buildPdf(h.inv).output('blob'), pdfName(h.inv)); }
       if (a === 'gs') {
         const n = JSON.parse(JSON.stringify(h.inv));
-        Object.assign(n, { id: uid(), typ: 'gutschrift', nr: nextNr('gutschrift'), datum: today(), leistung: h.inv.leistung || h.inv.datum, bezug: h.nr, bezugDatum: h.datum, saved: false, skonto: { proz: '', tage: S.skontoTage }, notiz: '' });
+        Object.assign(n, { id: uid(), typ: 'gutschrift', nr: nextNr(), datum: today(), leistung: h.inv.leistung || h.inv.datum, bezug: h.nr, bezugDatum: h.datum, saved: false, skonto: { proz: '', tage: S.skontoTage }, notiz: '' });
         n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); $('#dlg-hist').close();
         toast(`Gutschrift ${inv.nr} zu Rechnung ${h.nr} angelegt – Positionen und Mengen anpassen, die nicht zurückkommen, entfernen.`, 'ok', null, 7000);
       }
@@ -1355,7 +1354,7 @@ $$('[data-logo]').forEach(inp => inp.onchange = e => {
 });
 $$('[data-logodel]').forEach(b => b.onclick = () => { S[b.dataset.logodel] = null; saveSettings(); loadLogos(); renderSettings(); });
 $('#btn-export').onclick = () => {
-  const data = { app: 'preisflieger-rechnung', version: VERSION, exportiert: new Date().toISOString(), settings: S, zaehler: getCounter(), zaehlerGS: getCounter('gutschrift'), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []) };
+  const data = { app: 'preisflieger-rechnung', version: VERSION, exportiert: new Date().toISOString(), settings: S, zaehler: getCounter(), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []) };
   download(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }), `Rechnung-Sicherung-${today()}.json`);
 };
 $('#imp-file').onchange = async e => {
@@ -1373,8 +1372,6 @@ $('#btn-theme').onclick = () => {
 function mergeData(d) {
   const z = getCounter(), dz = d.zaehler;
   if (dz && (dz.jahr > z.jahr || (dz.jahr === z.jahr && dz.n > z.n))) store.set('zaehler', dz);
-  const zg = getCounter('gutschrift'), dg = d.zaehlerGS;
-  if (dg && (dg.jahr > zg.jahr || (dg.jahr === zg.jahr && dg.n > zg.n))) store.set('zaehlerGS', dg);
   const k = store.get('kunden', {}); let changedAny = false;
   const tomb = store.get('kundenGeloescht', {});
   for (const [key, t] of Object.entries(d.kundenGeloescht || {})) if (!tomb[key] || t > tomb[key]) tomb[key] = t;
@@ -1526,7 +1523,7 @@ async function syncCloud(push) {
     const r = await graph(sp);
     if (r.ok) mergeData(await r.json());
     if (push || !r.ok) {
-      const data = { app: 'preisflieger-rechnung', zaehler: getCounter(), zaehlerGS: getCounter('gutschrift'), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []).slice(0, 300) };
+      const data = { app: 'preisflieger-rechnung', zaehler: getCounter(), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []).slice(0, 300) };
       await graph(sp, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     }
     renderKunden(); return true;

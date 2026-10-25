@@ -111,7 +111,9 @@ Kunden und Verlauf überträgst du dann über **Einstellungen → Sicherung heru
 Oben neben dem Titel zwischen **Rechnung** und **Gutschrift** umschalten, oder bequemer:
 **Verlauf → bei der Rechnung auf „Gutschrift“** – dann werden Kunde und Positionen übernommen
 und „zu Rechnung Nr.“ ist schon ausgefüllt. Positionen, die nicht zurückkommen, entfernen bzw. Menge anpassen.
-Gutschriften haben einen eigenen Nummernkreis (`GS_26_1`, `GS_26_2` …), kein Skonto und keinen Zahlungs-QR.
+Gutschriften laufen in derselben fortlaufenden Nummernreihe wie Rechnungen (z. B. RE_26_32), sind aber als
+„Gutschrift“ gekennzeichnet: Überschrift im PDF, Dateiname `RE_26_32 Gutschrift Kunde.pdf`, Kennzeichen im Verlauf.
+Kein Skonto und kein Zahlungs-QR.
 Beim Speichern werden die Mengen in der Excel in der Spalte **Verkauf** wieder abgezogen
 (aus `=0+1+1+2` wird `=0+1+1+2-1`). Die Spalte **Zukauf** wird nie verändert.
 
