@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Preisflieger Rechnung</title>
+<script>try{var _sp=JSON.parse(localStorage.getItem('pf.sperre')||'null');if(_sp&&_sp.hash)document.documentElement.classList.add('locked')}catch(e){}</script>
 <meta name="theme-color" content="#0b2a5b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -98,6 +99,16 @@ label.f textarea{resize:vertical;min-height:70px;line-height:1.4}
 .res .pr{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:14px}
 .res mark{background:var(--hit);color:inherit;border-radius:2px}
 .badge{display:inline-block;font-size:11px;font-weight:600;color:var(--err);border:1px solid currentColor;border-radius:999px;padding:0 6px;margin-left:4px;vertical-align:1px}
+html.locked body>*:not(#lock){visibility:hidden}
+#lock{position:fixed;inset:0;z-index:100;display:none;place-items:center;background:var(--paper);padding:24px 16px calc(24px + env(safe-area-inset-bottom))}
+html.locked #lock{display:grid}
+.lock-card{width:100%;max-width:340px;text-align:center;display:grid;gap:14px}
+.lock-card img{width:72px;height:72px;margin:0 auto;object-fit:contain}
+.lock-card h1{font-size:20px;margin:0}
+.lock-card p{margin:0;color:var(--muted);font-size:14px}
+#lock-pin{width:100%;text-align:center;font-family:var(--f-num);font-size:26px;letter-spacing:.35em;padding:12px;border-radius:12px;border:1.5px solid var(--accent);background:var(--sheet);color:var(--ink)}
+#lock-msg{min-height:1.3em;color:#c0392b;font-size:14px}
+.lock-card .btn{width:100%;padding:12px;font-size:16px}
 .kwrap{position:relative}
 .kres{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;width:100%;text-align:left;border:0;background:transparent;color:inherit;font:inherit;padding:9px 10px;border-radius:8px;cursor:pointer}
 .kres:hover,.kres.sel{background:var(--accent-soft)}
@@ -205,6 +216,18 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
 </style>
 </head>
 <body>
+<div id="lock" role="dialog" aria-modal="true" aria-label="App gesperrt">
+  <form class="lock-card" id="lock-form" autocomplete="off">
+    <img src="img/mark.png" alt="">
+    <h1>Preisflieger Rechnung</h1>
+    <p id="lock-hint">PIN eingeben, um die App zu öffnen.</p>
+    <input id="lock-pin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="12" aria-label="PIN">
+    <div id="lock-msg" aria-live="polite"></div>
+    <button class="btn pri" type="submit">Entsperren</button>
+    <button class="btn" id="lock-bio" type="button" hidden>Mit Face ID / Fingerabdruck entsperren</button>
+    <button class="btn ghost small" id="lock-forgot" type="button">PIN vergessen?</button>
+  </form>
+</div>
 
 <header class="top">
   <div class="top-in">
@@ -366,6 +389,18 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
       <p class="hint">PDFs landen in <code>Rechnungen › Preisflieger 2026</code>. Ab der ersten Rechnung 2027 legt die App den Ordner <code>Preisflieger 2027</code> selbst an. Nummern, Kunden und Verlauf werden zwischen PC und Handy abgeglichen. Ohne Client-ID wird das PDF heruntergeladen bzw. am Handy über „Teilen“ an die OneDrive-App übergeben.</p>
       <div class="row"><button class="btn small" id="btn-od-login" type="button">Mit OneDrive verbinden</button>
         <button class="btn ghost small" id="btn-od-logout" type="button">Abmelden</button><span class="hint" id="od-status"></span></div>
+    </div></section>
+
+    <section><h2>Sperre</h2><div class="sheet">
+      <p class="hint">Mit einer PIN fragt die App beim Öffnen nach dem Code. Die PIN gilt nur für dieses Gerät und wird nicht gespeichert, nur ein verschlüsselter Prüfwert.</p>
+      <div class="row"><button class="btn small" id="btn-pin-set" type="button">PIN festlegen</button>
+        <button class="btn ghost small" id="btn-pin-del" type="button" hidden>PIN entfernen</button><span class="hint" id="pin-status"></span></div>
+      <div class="grid two" id="pin-opts" hidden>
+        <label class="f">Wieder sperren, wenn die App im Hintergrund war<select id="s-pin-nach">
+          <option value="0">sofort</option><option value="1">nach 1 Minute</option><option value="5">nach 5 Minuten</option><option value="15">nach 15 Minuten</option><option value="-1">nur beim Neustart</option></select></label>
+        <div class="f" id="bio-row" hidden><span>Face ID / Fingerabdruck / Windows Hello</span>
+          <div class="row"><button class="btn small" id="btn-bio" type="button">Einrichten</button><span class="hint" id="bio-status"></span></div></div>
+      </div>
     </div></section>
 
     <section><h2>Daten</h2><div class="sheet">
@@ -1393,6 +1428,111 @@ async function syncCloud(push) {
   loadFeed(false);
   if (S.od.clientId) odInit().then(app => { if (app.getActiveAccount()) { odLoadArtikel(); } if (app.getActiveAccount()) syncCloud(false).then(ok => { if (ok && !inv.saved && !inv.lines.length) { inv.nr = nextNr(); renderHead(); saveDraft(); } }); }).catch(() => { });
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
+})();
+</script>
+<script>
+/* ---------- App-Sperre (PIN, optional Face ID / Windows Hello) ---------- */
+(() => {
+  const L = () => store.get('sperre', null);
+  const b64 = a => btoa(String.fromCharCode(...new Uint8Array(a)));
+  const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  async function hashPin(pin, salt, iter) {
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
+    return b64(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: unb64(salt), iterations: iter, hash: 'SHA-256' }, key, 256));
+  }
+  const root = document.documentElement;
+  let hiddenAt = 0;
+  function lock() {
+    const s = L(); if (!s?.hash) return;
+    root.classList.add('locked'); $('#lock-pin').value = ''; $('#lock-msg').textContent = '';
+    document.querySelectorAll('dialog[open]').forEach(d => d.close());
+    $('#lock-bio').hidden = !s.cred;
+    setTimeout(() => $('#lock-pin').focus(), 50);
+  }
+  function unlock() { root.classList.remove('locked'); $('#lock-pin').value = ''; $('#lock-pin').blur(); }
+  $('#lock-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const s = L(); if (!s) return unlock();
+    const wait = (s.sperrBis || 0) - Date.now();
+    if (wait > 0) { $('#lock-msg').textContent = `Zu viele Versuche – bitte ${Math.ceil(wait / 1000)} Sekunden warten.`; return; }
+    const pin = $('#lock-pin').value.trim(); if (!pin) return;
+    if (await hashPin(pin, s.salt, s.iter) === s.hash) { s.fehler = 0; s.sperrBis = 0; store.set('sperre', s); unlock(); return; }
+    s.fehler = (s.fehler || 0) + 1;
+    if (s.fehler >= 5) { s.sperrBis = Date.now() + 30000 * Math.min(2 ** (s.fehler - 5), 32); }
+    store.set('sperre', s);
+    $('#lock-pin').value = ''; $('#lock-msg').textContent = s.sperrBis > Date.now() ? 'Falsche PIN – App für kurze Zeit gesperrt.' : 'Falsche PIN.';
+  });
+  async function bioUnlock() {
+    const s = L(); if (!s?.cred) return false;
+    try {
+      await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ type: 'public-key', id: unb64(s.cred) }], userVerification: 'required', timeout: 60000 } });
+      unlock(); return true;
+    } catch (e) { $('#lock-msg').textContent = 'Face ID / Fingerabdruck abgebrochen – bitte PIN eingeben.'; return false; }
+  }
+  $('#lock-bio').onclick = bioUnlock;
+  $('#lock-forgot').onclick = () => {
+    if (!confirm('PIN vergessen?\n\nDie App wird auf diesem Gerät zurückgesetzt: Einstellungen, Kunden, Verlauf und Entwurf auf DIESEM Gerät werden gelöscht. Bereits gespeicherte PDFs in OneDrive bleiben erhalten, und nach dem erneuten Verbinden mit OneDrive kommen Kunden, Nummern und Verlauf von dort zurück.\n\nFortfahren?')) return;
+    Object.keys(localStorage).filter(k => k.startsWith('pf.')).forEach(k => localStorage.removeItem(k));
+    location.reload();
+  };
+  document.addEventListener('visibilitychange', () => {
+    const s = L(); if (!s?.hash) return;
+    if (document.hidden) { hiddenAt = Date.now(); if ((s.nach ?? 1) === 0) lock(); return; }
+    const n = s.nach ?? 1;
+    if (n > 0 && hiddenAt && Date.now() - hiddenAt >= n * 60000) lock();
+  });
+
+  // Einstellungen
+  async function bioAvailable() { try { return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch (e) { return false; } }
+  async function renderSperre() {
+    const s = L(), on = !!s?.hash;
+    $('#pin-status').textContent = on ? 'PIN ist aktiv.' : 'Keine PIN – App öffnet ohne Code.';
+    $('#btn-pin-set').textContent = on ? 'PIN ändern' : 'PIN festlegen';
+    $('#btn-pin-del').hidden = !on; $('#pin-opts').hidden = !on;
+    if (on) $('#s-pin-nach').value = String(s.nach ?? 1);
+    $('#bio-row').hidden = !(on && await bioAvailable());
+    $('#bio-status').textContent = s?.cred ? 'eingerichtet' : '';
+    $('#btn-bio').textContent = s?.cred ? 'Ausschalten' : 'Einrichten';
+  }
+  $('#btn-pin-set').onclick = async () => {
+    const s = L();
+    if (s?.hash) { const alt = prompt('Aktuelle PIN eingeben:'); if (alt == null) return; if (await hashPin(alt.trim(), s.salt, s.iter) !== s.hash) { toast('Die aktuelle PIN stimmt nicht.', 'err'); return; } }
+    const p1 = prompt('Neue PIN (4 bis 12 Ziffern):'); if (p1 == null) return;
+    if (!/^\d{4,12}$/.test(p1.trim())) { toast('Die PIN muss aus 4 bis 12 Ziffern bestehen.', 'err'); return; }
+    const p2 = prompt('Neue PIN zur Bestätigung nochmal eingeben:'); if (p2 == null) return;
+    if (p1.trim() !== p2.trim()) { toast('Die beiden Eingaben stimmen nicht überein.', 'err'); return; }
+    const salt = b64(crypto.getRandomValues(new Uint8Array(16))), iter = 150000;
+    store.set('sperre', { ...(s || {}), salt, iter, hash: await hashPin(p1.trim(), salt, iter), nach: s?.nach ?? 1, fehler: 0, sperrBis: 0 });
+    toast('PIN gespeichert. Ab jetzt fragt die App beim Öffnen danach.', 'ok'); renderSperre();
+  };
+  $('#btn-pin-del').onclick = async () => {
+    const s = L(); if (!s) return;
+    const alt = prompt('Zum Entfernen die aktuelle PIN eingeben:'); if (alt == null) return;
+    if (await hashPin(alt.trim(), s.salt, s.iter) !== s.hash) { toast('Die PIN stimmt nicht.', 'err'); return; }
+    localStorage.removeItem('pf.sperre'); toast('PIN entfernt.', 'ok'); renderSperre();
+  };
+  $('#s-pin-nach').onchange = e => { const s = L(); if (!s) return; s.nach = +e.target.value; store.set('sperre', s); };
+  $('#btn-bio').onclick = async () => {
+    const s = L(); if (!s) return;
+    if (s.cred) { delete s.cred; store.set('sperre', s); renderSperre(); return; }
+    try {
+      const c = await navigator.credentials.create({ publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: 'Preisflieger Rechnung', id: location.hostname },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'preisflieger-rechnung', displayName: 'Preisflieger Rechnung' },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' }, timeout: 60000 } });
+      s.cred = b64(c.rawId); store.set('sperre', s); toast('Eingerichtet – beim Öffnen kannst du jetzt auch so entsperren.', 'ok');
+    } catch (e) { toast('Einrichtung abgebrochen.', 'err'); }
+    renderSperre();
+  };
+  $('#btn-set').addEventListener('click', renderSperre);
+
+  // Start
+  if (L()?.hash) {
+    lock();
+    if (L()?.cred) setTimeout(() => { if (root.classList.contains('locked')) bioUnlock(); }, 300);
+  }
 })();
 </script>
 </body>

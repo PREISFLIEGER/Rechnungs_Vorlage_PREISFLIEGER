@@ -106,6 +106,15 @@ Ohne OneDrive-Einrichtung: Am Handy öffnet sich beim Speichern das Teilen-Menü
 Am PC landet das PDF im Download-Ordner (oder direkt im OneDrive-Ordner, wenn du den im Browser als Speicherort wählst).
 Kunden und Verlauf überträgst du dann über **Einstellungen → Sicherung herunterladen / einspielen**.
 
+## 7. App-Sperre (PIN)
+
+**Einstellungen → Sperre → PIN festlegen** (4–12 Ziffern). Danach fragt die App beim Öffnen nach der PIN,
+und wieder, wenn sie länger im Hintergrund war (einstellbar: sofort, 1, 5, 15 Minuten oder nur beim Neustart).
+Zusätzlich lässt sich **Face ID / Fingerabdruck / Windows Hello** einrichten.
+Die PIN gilt pro Gerät; gespeichert wird nur ein verschlüsselter Prüfwert. Nach 5 falschen Versuchen wartet die App.
+PIN vergessen → die App wird auf diesem Gerät zurückgesetzt; nach dem Verbinden mit OneDrive kommen Kunden,
+Nummern und Verlauf zurück, PDFs in OneDrive bleiben ohnehin erhalten.
+
 ## Hinweise
 
 - **Leistungsdatum** ist in Österreich Pflichtangabe auf Rechnungen (§ 11 UStG) und deshalb neu dazugekommen;
