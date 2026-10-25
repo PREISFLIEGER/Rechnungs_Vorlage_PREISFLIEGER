@@ -109,6 +109,10 @@ html.locked #lock{display:grid}
 #lock-pin{width:100%;text-align:center;font-family:var(--f-num);font-size:26px;letter-spacing:.35em;padding:12px;border-radius:12px;border:1.5px solid var(--accent);background:var(--sheet);color:var(--ink)}
 #lock-msg{min-height:1.3em;color:#c0392b;font-size:14px}
 .lock-card .btn{width:100%;padding:12px;font-size:16px}
+.send-list{display:grid;gap:10px}
+.send-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px;white-space:normal;font-size:15px}
+.send-btn small{color:var(--muted);font-size:12.5px}
+.send-btn[disabled]{opacity:.5;cursor:not-allowed}
 .kwrap{position:relative}
 .kres{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;width:100%;text-align:left;border:0;background:transparent;color:inherit;font:inherit;padding:9px 10px;border-radius:8px;cursor:pointer}
 .kres:hover,.kres.sel{background:var(--accent-soft)}
@@ -270,6 +274,8 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
       <label class="f">PLZ Ort<input id="k-ort"></label>
       <label class="f">Land<input id="k-land" placeholder="leer = Österreich"></label>
       <label class="f">UID-Nr. des Kunden<input id="k-uid" placeholder="optional, z. B. ATU…"></label>
+      <label class="f">Telefon (für WhatsApp)<input id="k-tel" type="tel" inputmode="tel" autocomplete="off" placeholder="z. B. 0664 1234567"></label>
+      <label class="f">E-Mail<input id="k-mail" type="email" inputmode="email" autocomplete="off" placeholder="kunde@beispiel.at"></label>
     </div>
       </section>
 
@@ -307,10 +313,24 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
   <div class="sum"><small id="bar-lbl">Gesamtbetrag</small><strong id="bar-sum">€ 0,00</strong></div>
   <button class="btn" id="btn-preview" type="button" title="PDF ansehen / drucken"><span aria-hidden="true">👁</span> <span class="lbl">Vorschau</span></button>
   <button class="btn" id="btn-share" type="button" title="PDF teilen oder herunterladen"><span aria-hidden="true">⇪</span> <span class="lbl">PDF</span></button>
+  <button class="btn" id="btn-send" type="button" title="An den Kunden senden" hidden><span aria-hidden="true">✉</span> <span class="lbl">Senden</span></button>
   <button class="btn pri" id="btn-save" type="button">Fertig &amp; speichern</button>
 </div></div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
+
+<dialog id="dlg-send">
+  <div class="dlg-head"><h3 id="send-title">Rechnung senden</h3><button class="btn" data-close type="button">Schließen</button></div>
+  <div class="dlg-body">
+    <div class="send-list">
+      <button class="btn send-btn" id="send-mail" type="button"><b>✉ Per E-Mail</b><small id="send-mail-to"></small></button>
+      <button class="btn send-btn" id="send-wa" type="button"><b>💬 Per WhatsApp</b><small id="send-wa-to"></small></button>
+      <button class="btn send-btn" id="send-file" type="button"><b>⇪ PDF als Anhang teilen</b><small>Teilen-Menü: Mail, WhatsApp, Nachrichten …</small></button>
+    </div>
+    <p class="hint" id="send-info"></p>
+    <label class="f">Nachricht (änderbar)<textarea id="send-text" rows="7"></textarea></label>
+  </div>
+</dialog>
 
 <!-- Verlauf -->
 <dialog id="dlg-hist">
@@ -897,6 +917,7 @@ function updateTotals() {
   if (c.skonto > 0 && !istGS(inv)) h += `<span class="lbl">${fmtQty(c.skonto)} % Skonto bis ${dfmt(addDays(inv.datum, inv.skonto.tage))}</span><span class="v">- ${eur(c.skBetrag)}</span><span class="lbl">Zahlbetrag mit Skonto</span><span class="v">${eur(c.zahlSkonto)}</span>`;
   T.innerHTML = h;
   $('#bar-sum').textContent = eur(c.gross);
+  $('#btn-send').hidden = !inv.saved;
   $('#bar-lbl').textContent = istGS(inv) ? 'Gutschrift' : 'Gesamtbetrag';
   const pay = $('#pay');
   if (qrPossible() && c.gross > 0 && !istGS(inv)) {
@@ -907,7 +928,7 @@ function updateTotals() {
 }
 
 /* ---------- Kopf & Kunde ---------- */
-const KF = ['name', 'zusatz', 'strasse', 'ort', 'land', 'uid'];
+const KF = ['name', 'zusatz', 'strasse', 'ort', 'land', 'uid', 'tel', 'mail'];
 function renderHead() {
   $('#inv-nr').value = inv.nr; $('#inv-datum').value = inv.datum; $('#inv-leistung').value = inv.leistung || inv.datum;
   for (const f of KF) $('#k-' + f).value = inv.kunde[f] || '';
@@ -968,7 +989,7 @@ function searchKunden(q) {
   const t = norm(q).split(/\s+/).filter(Boolean);
   if (!t.length) return all.sort((a, b) => (b.k.ts || 0) - (a.k.ts || 0)).slice(0, 8);
   const q0 = norm(q.trim());
-  return all.filter(({ k }) => { const s = norm([k.name, k.zusatz, k.strasse, k.ort, k.land, k.uid].join(' ')); return t.every(x => s.includes(x)); })
+  return all.filter(({ k }) => { const s = norm([k.name, k.zusatz, k.strasse, k.ort, k.land, k.uid, k.tel, k.mail].join(' ')); return t.every(x => s.includes(x)); })
     .map(x => { const n = norm(x.k.name); return [n.startsWith(q0) ? 0 : n.includes(q0) ? 1 : 2, x]; })
     .sort((a, b) => a[0] - b[0] || String(a[1].k.name).localeCompare(String(b[1].k.name), 'de')).slice(0, 30).map(x => x[1]);
 }
@@ -1255,7 +1276,8 @@ $('#btn-save').onclick = async () => {
     archive();
     lagerVormerken(inv);
     syncCloud(true); lagerSenden();
-    toast(`${istGS(inv) ? 'Gutschrift' : 'Rechnung'} ${inv.nr} gespeichert (${where}).`, 'ok', { label: 'Neue Rechnung', fn: () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); window.scrollTo({ top: 0 }); } });
+    updateTotals();
+    toast(`${istGS(inv) ? 'Gutschrift' : 'Rechnung'} ${inv.nr} gespeichert (${where}).`, 'ok', { label: 'Senden', fn: () => openSend(inv) });
   } finally { btn.disabled = false; btn.textContent = old; }
 };
 function archive() {
@@ -1277,13 +1299,14 @@ function renderHist() {
   for (const h of list.slice(0, 200)) {
     const el = document.createElement('div'); el.className = 'h-item';
     el.innerHTML = `<span class="nr"></span><span class="k"></span><span class="b"></span><span class="d"></span>
-      <div class="acts"><button class="btn small" data-a="open" type="button">Öffnen</button><button class="btn small" data-a="copy" type="button">Als Vorlage</button><button class="btn small" data-a="pdf" type="button">PDF</button><button class="btn small" data-a="gs" type="button">Gutschrift</button><button class="btn ghost small" data-a="del" type="button">Löschen</button></div>`;
+      <div class="acts"><button class="btn small" data-a="open" type="button">Öffnen</button><button class="btn small" data-a="copy" type="button">Als Vorlage</button><button class="btn small" data-a="pdf" type="button">PDF</button><button class="btn small" data-a="send" type="button">Senden</button><button class="btn small" data-a="gs" type="button">Gutschrift</button><button class="btn ghost small" data-a="del" type="button">Löschen</button></div>`;
     el.querySelector('.nr').innerHTML = (istGS(h.inv) ? '<span class="typ">Gutschrift</span>' : '') + esc(h.nr); if (istGS(h.inv)) el.querySelector('[data-a=gs]').remove(); el.querySelector('.k').textContent = h.kunde; el.querySelector('.b').textContent = (istGS(h.inv) ? '− ' : '') + eur(h.brutto); el.querySelector('.d').textContent = dfmt(h.datum);
     el.addEventListener('click', e => {
       const a = e.target.dataset.a; if (!a) return;
       if (a === 'open') { inv = JSON.parse(JSON.stringify(h.inv)); store.set('draft', inv); renderAll(); $('#dlg-hist').close(); }
       if (a === 'copy') { const n = JSON.parse(JSON.stringify(h.inv)); Object.assign(n, { id: uid(), nr: nextNr(n.typ || 'rechnung'), datum: today(), leistung: today(), saved: false }); n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); $('#dlg-hist').close(); toast('Kopie mit neuer Nummer ' + inv.nr + ' angelegt.'); }
       if (a === 'pdf') { download(buildPdf(h.inv).output('blob'), pdfName(h.inv)); }
+      if (a === 'send') { $('#dlg-hist').close(); openSend(h.inv); }
       if (a === 'gs') {
         const n = JSON.parse(JSON.stringify(h.inv));
         Object.assign(n, { id: uid(), typ: 'gutschrift', nr: nextNr(), datum: today(), leistung: h.inv.leistung || h.inv.datum, bezug: h.nr, bezugDatum: h.datum, saved: false, skonto: { proz: '', tage: S.skontoTage }, notiz: '' });
@@ -1299,6 +1322,71 @@ function renderHist() {
   }
 }
 $('#btn-hist').onclick = () => { renderHist(); $('#dlg-hist').showModal(); };
+
+/* ---------- An den Kunden senden (E-Mail / WhatsApp mit Link zum PDF in OneDrive, oder PDF als Anhang) ---------- */
+let sendX = null;
+function waNummer(t) {
+  let s = String(t || '').replace(/[^\d+]/g, '');
+  if (s.startsWith('+')) s = s.slice(1); else if (s.startsWith('00')) s = s.slice(2); else if (s.startsWith('0')) s = '43' + s.slice(1);
+  return s.length >= 8 ? s : '';
+}
+function sendText(x, link) {
+  const gs = istGS(x), c = compute(x), name = (x.kunde?.name || '').trim();
+  const art = gs ? 'Gutschrift' : 'Rechnung';
+  return `${name ? 'Hallo ' + name + ',' : 'Hallo,'}\n\n${gs ? 'anbei die Gutschrift' : 'vielen Dank für Ihren Einkauf! Anbei die Rechnung'} ${x.nr} über ${eur(c.gross)}${gs && x.bezug ? ' zu Rechnung ' + x.bezug : ''}.` +
+    (link ? `\n\n${art} als PDF ansehen und herunterladen:\n${link}` : '') +
+    `\n\nFreundliche Grüße\n${S.firma?.name || ''}${S.firma?.zeile2 ? '\n' + S.firma.zeile2 : ''}`;
+}
+async function odLink(x) {
+  if (x.odLink) return x.odLink;
+  const sub = jahresOrdner(x.datum);
+  const r = await graph(await odPath((sub ? sub + '/' : '') + pdfName(x)));
+  if (!r.ok) throw new Error(r.status === 404 ? 'PDF nicht in OneDrive gefunden' : 'Fehler ' + r.status);
+  const it = await r.json();
+  const l = await graph(`/drives/${it.parentReference.driveId}/items/${it.id}/createLink`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'view', scope: 'anonymous' }) });
+  if (!l.ok) { let m = 'Fehler ' + l.status; try { m = (await l.json()).error.message; } catch (e) { } throw new Error(m); }
+  const url = (await l.json()).link.webUrl;
+  x.odLink = url;
+  const hist = store.get('verlauf', []); const hh = hist.find(e => e.nr === x.nr); if (hh) { hh.inv.odLink = url; store.set('verlauf', hist); }
+  if (inv.nr === x.nr) { inv.odLink = url; saveDraft(); }
+  return url;
+}
+async function openSend(x) {
+  sendX = x; const k = x.kunde || {}, gs = istGS(x);
+  $('#send-title').textContent = (gs ? 'Gutschrift ' : 'Rechnung ') + x.nr + ' senden';
+  $('#send-mail-to').textContent = k.mail ? 'an ' + k.mail : 'keine E-Mail beim Kunden eingetragen';
+  $('#send-wa-to').textContent = waNummer(k.tel) ? 'an ' + k.tel : 'keine Telefonnummer beim Kunden eingetragen';
+  $('#send-mail').disabled = true; $('#send-wa').disabled = true;
+  $('#send-text').value = sendText(x, x.odLink || '');
+  $('#dlg-send').showModal();
+  let link = x.odLink || '';
+  if (!link && S.od.clientId) {
+    $('#send-info').textContent = 'Link zum PDF wird in OneDrive erstellt …';
+    try { link = await odLink(x); } catch (e) { link = ''; $('#send-info').textContent = 'Kein Link möglich (' + e.message + '). E-Mail/WhatsApp gehen trotzdem – das PDF dann über „Als Anhang teilen“ schicken.'; }
+    if (sendX !== x) return;
+    $('#send-text').value = sendText(x, link);
+  }
+  if (link) $('#send-info').textContent = 'Der Kunde bekommt einen Link zum PDF in deinem OneDrive (nur ansehen/herunterladen, nur mit diesem Link erreichbar).';
+  else if (!S.od.clientId) $('#send-info').textContent = 'Ohne OneDrive-Verbindung kein Link – das PDF über „Als Anhang teilen“ schicken.';
+  $('#send-mail').disabled = !k.mail; $('#send-wa').disabled = !waNummer(k.tel);
+}
+$('#send-mail').onclick = () => {
+  const x = sendX, k = x.kunde || {};
+  const subj = `${istGS(x) ? 'Gutschrift' : 'Rechnung'} ${x.nr}` + (S.firma?.zeile2 ? ' – ' + S.firma.zeile2 : '');
+  location.href = `mailto:${encodeURIComponent(k.mail.trim())}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent($('#send-text').value)}`;
+};
+$('#send-wa').onclick = () => {
+  const x = sendX;
+  window.open(`https://wa.me/${waNummer(x.kunde.tel)}?text=${encodeURIComponent($('#send-text').value)}`, '_blank');
+};
+$('#send-file').onclick = async () => {
+  const x = sendX, blob = buildPdf(x).output('blob'), name = pdfName(x);
+  const file = new File([blob], name, { type: 'application/pdf' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name, text: $('#send-text').value.replace(/\n\n[^\n]*als PDF ansehen[^\n]*\n\S+/, '') }); } catch (e) { if (e.name !== 'AbortError') download(blob, name); }
+  } else download(blob, name);
+};
+$('#btn-send').onclick = () => { if (!inv.saved) { toast('Zuerst „Fertig & speichern“, dann senden.', 'err'); return; } openSend(inv); };
 $('#hist-q').addEventListener('input', renderHist);
 $$('dialog [data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
 

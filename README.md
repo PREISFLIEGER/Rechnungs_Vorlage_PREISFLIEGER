@@ -106,6 +106,16 @@ Ohne OneDrive-Einrichtung: Am Handy öffnet sich beim Speichern das Teilen-Menü
 Am PC landet das PDF im Download-Ordner (oder direkt im OneDrive-Ordner, wenn du den im Browser als Speicherort wählst).
 Kunden und Verlauf überträgst du dann über **Einstellungen → Sicherung herunterladen / einspielen**.
 
+## 6a. Rechnung an den Kunden senden
+
+Beim Kunden gibt es die Felder **Telefon** und **E-Mail** (werden mit dem Kunden gespeichert und abgeglichen).
+Nach **Fertig & speichern** → **Senden** (auch unten in der Leiste oder im Verlauf):
+- **Per E-Mail:** öffnet das Mailprogramm mit Empfänger, Betreff und Text, inkl. Link zum PDF in OneDrive.
+- **Per WhatsApp:** öffnet den Chat mit der Telefonnummer des Kunden, Text und Link sind schon drin.
+- **PDF als Anhang teilen:** Teilen-Menü mit der PDF-Datei (z. B. wenn der Kunde lieber einen Anhang will).
+Der Link ist ein „Nur ansehen“-Link auf das PDF in deinem OneDrive, erreichbar nur mit dem Link.
+Telefonnummern wie `0664 1234567` werden automatisch zu `+43 664 1234567`.
+
 ## 6b. Gutschrift
 
 Oben neben dem Titel zwischen **Rechnung** und **Gutschrift** umschalten, oder bequemer:

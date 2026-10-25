@@ -1,6 +1,6 @@
 // Offline-Fähigkeit: immer zuerst aus dem Netz laden (damit Änderungen sofort ankommen),
 // nur ohne Verbindung die zuletzt gespeicherte Version verwenden.
-const CACHE = 'rechnung-v9';
+const CACHE = 'rechnung-v10';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './apple-touch-icon.png', './favicon.png', './vendor/jspdf.umd.min.js', './vendor/qrcode.js', './vendor/papaparse.min.js', './img/mark.png', './img/logo-preisflieger-600.png', './img/logo-recycled-600.png'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); });
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
