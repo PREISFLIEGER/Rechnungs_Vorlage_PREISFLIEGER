@@ -69,7 +69,10 @@ Wenn du von Shopify (oder einer Feed-App) einen Feed-Link bekommst:
 
 ## 5. Rechnung schreiben
 
-1. Kunde eintippen – bekannte Kunden werden vorgeschlagen und die Adresse ausgefüllt.
+1. Ins Feld **Name / Firma** tippen: Die App sucht in allen gespeicherten Kunden nach Name, Ort, Straße oder UID
+   (z. B. „huber“ oder „linz“). Treffer antippen (oder **Enter**) füllt die ganze Adresse aus.
+   Beim Antippen des leeren Felds siehst du die zuletzt verwendeten Kunden. Neue Kunden merkt sich die App automatisch
+   beim **Fertig & speichern**. Mit dem **×** rechts in der Liste löschst du einen gespeicherten Kunden.
 2. Ins Suchfeld Artikelnummer oder Teil des Namens tippen → Treffer antippen (oder **Enter** für den ersten).
    Nochmal denselben Artikel wählen erhöht die Menge. Nichts gefunden? **Enter** legt eine freie Position an.
 3. Nach dem Auswählen springt der Cursor gleich ins **Mengenfeld** – Zahl eintippen, **Enter**, und weiter mit dem nächsten Artikel.

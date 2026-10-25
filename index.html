@@ -98,6 +98,14 @@ label.f textarea{resize:vertical;min-height:70px;line-height:1.4}
 .res .pr{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:14px}
 .res mark{background:var(--hit);color:inherit;border-radius:2px}
 .badge{display:inline-block;font-size:11px;font-weight:600;color:var(--err);border:1px solid currentColor;border-radius:999px;padding:0 6px;margin-left:4px;vertical-align:1px}
+.kwrap{position:relative}
+.kres{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;width:100%;text-align:left;border:0;background:transparent;color:inherit;font:inherit;padding:9px 10px;border-radius:8px;cursor:pointer}
+.kres:hover,.kres.sel{background:var(--accent-soft)}
+.kres .nm{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.kres .ad{grid-column:1;font-size:13px;color:var(--muted);min-width:0;overflow-wrap:anywhere}
+.kres .del{grid-row:1 / span 2;grid-column:2;border:0;background:transparent;color:var(--muted);font-size:18px;line-height:1;padding:6px 8px;border-radius:6px;cursor:pointer}
+.kres .del:hover{color:var(--ink);background:var(--line)}
+.kres mark{background:var(--hit);color:inherit;border-radius:2px}
 .res-empty{padding:12px;color:var(--muted);font-size:14px}
 .feedinfo{font-size:12.5px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block}
@@ -225,15 +233,15 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
   <section>
     <h2>Kunde <span class="spacer"></span><button class="btn ghost small" id="btn-kunde-clear" type="button">leeren</button></h2>
     <div class="sheet grid two">
-      <label class="f span2">Name / Firma<input id="k-name" list="kundenliste" autocomplete="off" placeholder="Name tippen – bekannte Kunden werden vorgeschlagen"></label>
+      <div class="span2 kwrap"><label class="f">Name / Firma<input id="k-name" autocomplete="off" placeholder="Kunde suchen: Name, Ort oder Straße tippen …" aria-autocomplete="list" aria-controls="k-results"></label>
+        <div class="results" id="k-results" hidden></div></div>
       <label class="f span2">Zusatz (Abteilung, z. Hd.)<input id="k-zusatz"></label>
       <label class="f">Straße, Nr.<input id="k-strasse"></label>
       <label class="f">PLZ Ort<input id="k-ort"></label>
       <label class="f">Land<input id="k-land" placeholder="leer = Österreich"></label>
       <label class="f">UID-Nr. des Kunden<input id="k-uid" placeholder="optional, z. B. ATU…"></label>
     </div>
-    <datalist id="kundenliste"></datalist>
-  </section>
+      </section>
 
   <section>
     <h2>Positionen <span class="spacer"></span>
@@ -861,10 +869,53 @@ for (const f of KF) $('#k-' + f).addEventListener('input', e => {
 $('#k-name').addEventListener('change', e => { const k = store.get('kunden', {})[norm(e.target.value.trim())]; if (k) fillKunde(k); });
 function fillKunde(k) { inv.kunde = { ...k }; delete inv.kunde.ts; for (const f of KF) $('#k-' + f).value = inv.kunde[f] || ''; saveDraft(); }
 $('#btn-kunde-clear').onclick = () => { inv.kunde = {}; for (const f of KF) $('#k-' + f).value = ''; saveDraft(); $('#k-name').focus(); };
-function renderKunden() {
-  const dl = $('#kundenliste'); dl.innerHTML = '';
-  Object.values(store.get('kunden', {})).sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach(k => { const o = document.createElement('option'); o.value = k.name; o.label = [k.strasse, k.ort].filter(Boolean).join(', '); dl.append(o); });
+function renderKunden() { if (!$('#k-results').hidden) showKunden(); }
+/* Kundensuche: alle gespeicherten Kunden, Suche über Name, Zusatz, Straße, Ort und UID */
+let kHits = [], kSel = 0;
+const kAdr = k => [k.zusatz, k.strasse, k.ort, k.land].filter(Boolean).join(' · ');
+function searchKunden(q) {
+  const all = Object.entries(store.get('kunden', {})).map(([key, k]) => ({ key, k }));
+  const t = norm(q).split(/\s+/).filter(Boolean);
+  if (!t.length) return all.sort((a, b) => (b.k.ts || 0) - (a.k.ts || 0)).slice(0, 8);
+  const q0 = norm(q.trim());
+  return all.filter(({ k }) => { const s = norm([k.name, k.zusatz, k.strasse, k.ort, k.land, k.uid].join(' ')); return t.every(x => s.includes(x)); })
+    .map(x => { const n = norm(x.k.name); return [n.startsWith(q0) ? 0 : n.includes(q0) ? 1 : 2, x]; })
+    .sort((a, b) => a[0] - b[0] || String(a[1].k.name).localeCompare(String(b[1].k.name), 'de')).slice(0, 30).map(x => x[1]);
 }
+function showKunden() {
+  const box = $('#k-results'), q = $('#k-name').value;
+  const anz = Object.keys(store.get('kunden', {})).length;
+  if (!anz) { box.hidden = true; kHits = []; return; }
+  kHits = searchKunden(q); kSel = 0; box.innerHTML = '';
+  if (!q.trim()) box.insertAdjacentHTML('beforeend', `<div class="res-empty">Zuletzt verwendet · ${anz} Kunde${anz === 1 ? '' : 'n'} gespeichert</div>`);
+  else if (!kHits.length) { box.innerHTML = '<div class="res-empty">Kein gespeicherter Kunde gefunden – einfach weiter eintippen, er wird beim Speichern der Rechnung gemerkt.</div>'; box.hidden = false; return; }
+  kHits.forEach(({ key, k }, i) => {
+    const b = document.createElement('div'); b.className = 'kres' + (i === 0 && q.trim() ? ' sel' : ''); b.setAttribute('role', 'option');
+    b.innerHTML = `<span class="nm">${highlight(k.name || '', q)}</span><span class="ad">${highlight(kAdr(k), q)}</span><button type="button" class="del" title="Kunde aus der Liste löschen" aria-label="Kunde löschen">×</button>`;
+    b.addEventListener('mousedown', e => e.preventDefault());
+    b.addEventListener('click', e => {
+      if (e.target.closest('.del')) {
+        if (!confirm(`Kunde „${k.name}“ aus der gespeicherten Liste löschen?\n(Bereits geschriebene Rechnungen bleiben unverändert.)`)) return;
+        const all = store.get('kunden', {}); delete all[key]; store.set('kunden', all);
+        const del = store.get('kundenGeloescht', {}); del[key] = Date.now(); store.set('kundenGeloescht', del);
+        showKunden(); syncCloud(true); return;
+      }
+      fillKunde(k); $('#k-results').hidden = true; $('#k-zusatz').focus();
+    });
+    box.append(b);
+  });
+  box.hidden = false;
+}
+$('#k-name').addEventListener('focus', showKunden);
+$('#k-name').addEventListener('input', showKunden);
+$('#k-name').addEventListener('blur', () => setTimeout(() => { $('#k-results').hidden = true; }, 120));
+$('#k-name').addEventListener('keydown', e => {
+  const box = $('#k-results'); if (box.hidden || !kHits.length) return;
+  const rows = $$('#k-results .kres');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); kSel = (kSel + (e.key === 'ArrowDown' ? 1 : -1) + kHits.length) % kHits.length; rows.forEach((el, i) => el.classList.toggle('sel', i === kSel)); rows[kSel]?.scrollIntoView({ block: 'nearest' }); }
+  else if (e.key === 'Enter') { e.preventDefault(); fillKunde(kHits[kSel].k); box.hidden = true; $('#k-zusatz').focus(); }
+  else if (e.key === 'Escape') box.hidden = true;
+});
 function setMode(m) {
   if (m === inv.modus) return;
   for (const l of inv.lines) { const p = num(l.preis); if (!isNaN(p)) l.preis = fmt(convertPrice(p, inv.modus, num(l.ust) || 0, m)); }
@@ -1197,7 +1248,7 @@ $$('[data-logo]').forEach(inp => inp.onchange = e => {
 });
 $$('[data-logodel]').forEach(b => b.onclick = () => { S[b.dataset.logodel] = null; saveSettings(); loadLogos(); renderSettings(); });
 $('#btn-export').onclick = () => {
-  const data = { app: 'preisflieger-rechnung', version: VERSION, exportiert: new Date().toISOString(), settings: S, zaehler: getCounter(), kunden: store.get('kunden', {}), verlauf: store.get('verlauf', []) };
+  const data = { app: 'preisflieger-rechnung', version: VERSION, exportiert: new Date().toISOString(), settings: S, zaehler: getCounter(), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []) };
   download(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }), `Rechnung-Sicherung-${today()}.json`);
 };
 $('#imp-file').onchange = async e => {
@@ -1216,7 +1267,11 @@ function mergeData(d) {
   const z = getCounter(), dz = d.zaehler;
   if (dz && (dz.jahr > z.jahr || (dz.jahr === z.jahr && dz.n > z.n))) store.set('zaehler', dz);
   const k = store.get('kunden', {}); let changedAny = false;
-  for (const [key, v] of Object.entries(d.kunden || {})) if (!k[key] || (v.ts || 0) > (k[key].ts || 0)) { k[key] = v; changedAny = true; }
+  const tomb = store.get('kundenGeloescht', {});
+  for (const [key, t] of Object.entries(d.kundenGeloescht || {})) if (!tomb[key] || t > tomb[key]) tomb[key] = t;
+  store.set('kundenGeloescht', tomb);
+  for (const [key, v] of Object.entries(d.kunden || {})) if ((!k[key] || (v.ts || 0) > (k[key].ts || 0)) && !((tomb[key] || 0) >= (v.ts || 0))) { k[key] = v; changedAny = true; }
+  for (const [key, t] of Object.entries(tomb)) if (k[key] && (k[key].ts || 0) <= t) { delete k[key]; changedAny = true; }
   store.set('kunden', k);
   const byId = new Map(store.get('verlauf', []).map(h => [h.nr, h]));
   for (const h of d.verlauf || []) { const cur = byId.get(h.nr); if (!cur || (h.ts || 0) > (cur.ts || 0)) { byId.set(h.nr, h); changedAny = true; } }
@@ -1319,7 +1374,7 @@ async function syncCloud(push) {
     const r = await graph(sp);
     if (r.ok) mergeData(await r.json());
     if (push || !r.ok) {
-      const data = { app: 'preisflieger-rechnung', zaehler: getCounter(), kunden: store.get('kunden', {}), verlauf: store.get('verlauf', []).slice(0, 300) };
+      const data = { app: 'preisflieger-rechnung', zaehler: getCounter(), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []).slice(0, 300) };
       await graph(sp, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     }
     renderKunden(); return true;
