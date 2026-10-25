@@ -403,7 +403,7 @@ const DEFAULTS = {
   kuText: 'Umsatzsteuerbefreit – Kleinunternehmer gem. § 6 Abs. 1 Z 27 UStG.',
   preisModus: 'netto', feedPreis: 'netto', standardUst: '20', skontoTage: '10', skontoProz: '',
   feedUrl: 'artikel.csv', nummernFormat: 'RE_{JJ}_{N}', dateiName: '{NR} {KUNDE}', bedingungen: BEDINGUNGEN,
-  od: { clientId: '', ordner: 'Rechnungen', jahresOrdner: 'Preisflieger {JJJJ}',
+  od: { clientId: '3efe35a6-1e8c-4e5a-9afb-fd7e09a3fca7', ordner: 'Rechnungen', jahresOrdner: 'Preisflieger {JJJJ}',
         link: 'https://1drv.ms/f/c/cf660f8fc97bad14/IgBj1ZZZdngOQY13-ejuata2ASemxCEWKScN9_w_uQ0MNUg?e=rJMasQ', ziel: null },
   logo: 'img/logo-preisflieger-600.png', logo2: 'img/logo-recycled-600.png'
 };
@@ -416,6 +416,7 @@ function merge(base, over) {
   return out;
 }
 let S = merge(DEFAULTS, store.get('settings', {}));
+if (!S.od.clientId) S.od.clientId = DEFAULTS.od.clientId; // Zugang „Rechnungs_Vorlage_PREISFLIEGER“ (Azure) ist fest hinterlegt
 const saveSettings = () => store.set('settings', S);
 
 /* ---------- Format-Helfer ---------- */

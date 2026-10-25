@@ -84,23 +84,17 @@ Wenn du von Shopify (oder einer Feed-App) einen Feed-Link bekommst:
 Der Zahlungs-QR-Code (EPC/GiroCode) enthält IBAN, Empfänger, **genauen Betrag** und „Rechnung Nr.“ als Verwendungszweck.
 Er wird direkt im Gerät erzeugt – kein Anbieter, keine Kosten. Antippen in der App zeigt ihn groß zum Vorzeigen.
 
-## 6. Optional: Direkt in OneDrive speichern
+## 6. Direkt in OneDrive speichern
 
-Damit „Fertig & speichern“ das PDF ohne Umweg in deinen Rechnungsordner legt, braucht die App einmalig
-eine eigene Zugangsnummer von Microsoft (kostenlos):
+Der Microsoft-Zugang ist eingerichtet (Azure-App-Registrierung „Rechnungs_Vorlage_PREISFLIEGER“,
+Client-ID `3efe35a6-1e8c-4e5a-9afb-fd7e09a3fca7`, Umleitungs-URI `https://preisflieger.github.io/Rechnungs_Vorlage_PREISFLIEGER/`).
+Die Client-ID ist in der App schon hinterlegt.
 
-Ordner: Die App legt PDFs in deinem Ordner **Rechnungen** (Link ist schon hinterlegt) im Unterordner
-**Preisflieger 2026** ab. Für Rechnungen mit Datum 2027 wird **Preisflieger 2027** automatisch angelegt –
-du musst nichts tun.
+Auf jedem Gerät einmal: **Einstellungen (Zahnrad) → OneDrive → Mit OneDrive verbinden** → mit
+Markus.und.Martina@outlook.com anmelden → Zugriff auf deine Dateien erlauben.
 
-1. https://entra.microsoft.com mit deinem Microsoft-Konto öffnen
-   → **Anwendungen → App-Registrierungen → Neue Registrierung**.
-2. Name: `Rechnung`.
-   Unterstützte Kontotypen: **Konten in einem beliebigen Organisationsverzeichnis und persönliche Microsoft-Konten**.
-3. Umleitungs-URI: Plattform **Single-Page-Anwendung (SPA)**, Adresse genau wie deine App:
-   `https://preisflieger.github.io/Rechnungs_Vorlage_PREISFLIEGER/` → **Registrieren**.
-4. Die **Anwendungs-ID (Client-ID)** kopieren → in der App unter **Einstellungen → OneDrive** einfügen
-   → **Mit OneDrive verbinden** → bei Microsoft den Zugriff auf deine Dateien erlauben.
+Ordner: Die App legt PDFs in deinem Ordner **Rechnungen** im Unterordner **Preisflieger 2026** ab.
+Für Rechnungen mit Datum 2027 wird **Preisflieger 2027** automatisch angelegt.
 
 Danach:
 - PDFs heißen `RE_26_31 Kundenname.pdf` (änderbar unter Einstellungen → PDF-Dateiname, gleiche Nummer → wird ersetzt).
