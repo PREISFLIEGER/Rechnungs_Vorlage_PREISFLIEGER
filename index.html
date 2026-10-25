@@ -10,8 +10,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Rechnung">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -117,6 +117,7 @@ html.locked #lock{display:grid}
 .kres .del{grid-row:1 / span 2;grid-column:2;border:0;background:transparent;color:var(--muted);font-size:18px;line-height:1;padding:6px 8px;border-radius:6px;cursor:pointer}
 .kres .del:hover{color:var(--ink);background:var(--line)}
 .kres mark{background:var(--hit);color:inherit;border-radius:2px}
+.lagerinfo{color:var(--muted);font-size:12.5px;white-space:nowrap}
 .res-empty{padding:12px;color:var(--muted);font-size:14px}
 .feedinfo{font-size:12.5px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block}
@@ -387,6 +388,8 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
         <label class="f">Ersatz-Pfad (ohne Link)<input id="s-od-ordner" data-s="od.ordner" placeholder="Rechnungen"></label>
       </div>
       <p class="hint">PDFs landen in <code>Rechnungen › Preisflieger 2026</code>. Ab der ersten Rechnung 2027 legt die App den Ordner <code>Preisflieger 2027</code> selbst an. Nummern, Kunden und Verlauf werden zwischen PC und Handy abgeglichen. Ohne Client-ID wird das PDF heruntergeladen bzw. am Handy über „Teilen“ an die OneDrive-App übergeben.</p>
+      <label class="f">Ordner der Produktliste (für Lagerbuchungen)<input id="s-lager-pfad" data-s="lagerPfad" placeholder="PREISFLIEGER/Produktlisten/Produktliste"></label>
+      <p class="hint">Bei „Fertig &amp; speichern“ legt die App dort die Datei <code>_lagerbuchungen.csv</code> ab. Die Excel-Produktliste zählt die verkauften Mengen beim nächsten Öffnen in der Spalte „Verkauf“ dazu. Rechnungen mit der Nummer „TEST…“ werden nicht gebucht.</p>
       <div class="row"><button class="btn small" id="btn-od-login" type="button">Mit OneDrive verbinden</button>
         <button class="btn ghost small" id="btn-od-logout" type="button">Abmelden</button><span class="hint" id="od-status"></span></div>
     </div></section>
@@ -438,6 +441,7 @@ const DEFAULTS = {
   kuText: 'Umsatzsteuerbefreit – Kleinunternehmer gem. § 6 Abs. 1 Z 27 UStG.',
   preisModus: 'netto', feedPreis: 'netto', standardUst: '20', skontoTage: '10', skontoProz: '',
   feedUrl: 'artikel.csv', nummernFormat: 'RE_{JJ}_{N}', dateiName: '{NR} {KUNDE}', bedingungen: BEDINGUNGEN,
+  lagerPfad: 'PREISFLIEGER/Produktlisten/Produktliste',
   od: { clientId: '3efe35a6-1e8c-4e5a-9afb-fd7e09a3fca7', ordner: 'Rechnungen', jahresOrdner: 'Preisflieger {JJJJ}',
         link: 'https://1drv.ms/f/c/cf660f8fc97bad14/IgBj1ZZZdngOQY13-ejuata2ASemxCEWKScN9_w_uQ0MNUg?e=rJMasQ', ziel: null },
   logo: 'img/logo-preisflieger-600.png', logo2: 'img/logo-recycled-600.png'
@@ -611,11 +615,12 @@ function mapRows(rows) {
   // Shöpping-CSV (aus der Produktliste per Makro erzeugt): Preis = „VK inkl. MwSt.“ (brutto), MwSt. als „20%“
   if (nk.includes('vkinklmwst') && nk.includes('produktnametitel')) {
     const k = n => keys[nk.indexOf(n)];
-    const kE = k('eigeneartikelnummer'), kH = k('herstellerartikelnummer'), kEan = k('eanisbn'), kN = k('produktnametitel'), kP = k('vkinklmwst'), kV = k('mwst'), kS = k('status');
+    const kE = k('eigeneartikelnummer'), kH = k('herstellerartikelnummer'), kEan = k('eanisbn'), kN = k('produktnametitel'), kP = k('vkinklmwst'), kV = k('mwst'), kS = k('status'), kL = k('lagerbestand');
     const str = v => v == null ? '' : String(v).trim();
     return rows.map(r => ({
       sku: str(r[kE]) || str(r[kH]) || str(r[kEan]), ean: str(r[kEan]), name: str(r[kN]).replace(/\s+/g, ' '),
-      preis: typeof r[kP] === 'number' ? r[kP] : num(r[kP]), basis: 'brutto', einheit: '', ust: kV ? parseVat(r[kV]) : null, status: kS ? str(r[kS]) : ''
+      preis: typeof r[kP] === 'number' ? r[kP] : num(r[kP]), basis: 'brutto', einheit: '', ust: kV ? parseVat(r[kV]) : null, status: kS ? str(r[kS]) : '',
+      lager: kL && str(r[kL]) !== '' && !isNaN(num(r[kL])) ? num(r[kL]) : null
     })).filter(a => a.name && !isNaN(a.preis) && a.preis > 0);
   }
   const cEan = findCol(keys, ['ean', 'eanisbn', 'gtin', 'ggtin']), cStat = findCol(keys, ['status', 'verfuegbarkeit', 'gavailability']);
@@ -703,7 +708,7 @@ function indexArtikel(list) {
   ARTIKEL = list.map(a => ({ ...a, _s: norm(a.sku), _n: norm(a.name), _k: norm(a.sku + ' ' + (a.ean || '') + ' ' + a.name) }));
 }
 function setFeed(list, quelle, stand = Date.now()) {
-  const clean = list.map(({ sku, ean, name, preis, basis, einheit, ust, status }) => ({ sku, ean: ean || '', name, preis: preis == null || isNaN(preis) ? null : preis, basis, einheit, ust, status: status || '' }));
+  const clean = list.map(({ sku, ean, name, preis, basis, einheit, ust, status, lager }) => ({ sku, ean: ean || '', name, preis: preis == null || isNaN(preis) ? null : preis, basis, einheit, ust, status: status || '', lager: lager ?? null }));
   indexArtikel(clean);
   const meta = { quelle, ts: stand, anzahl: clean.length };
   store.set('feed', { meta, items: clean });
@@ -767,7 +772,7 @@ function renderResults() {
   hits.forEach((a, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'res' + (i === 0 ? ' sel' : '');
     const aus = /ausverkauft|out.of.stock/i.test(a.status || '');
-    b.innerHTML = `<span class="sku">${highlight(a.sku, q)}</span><span class="nm">${highlight(a.name, q)}${aus ? ' <span class="badge">ausverkauft</span>' : ''}</span><span class="pr">${shownPrice(a)}</span>`;
+    b.innerHTML = `<span class="sku">${highlight(a.sku, q)}</span><span class="nm">${highlight(a.name, q)}${aus ? ' <span class="badge">ausverkauft</span>' : a.lager != null ? ` <span class="lagerinfo">· ${fmtQty(a.lager)} Stk. lagernd</span>` : ''}</span><span class="pr">${shownPrice(a)}</span>`;
     b.addEventListener('mousedown', e => e.preventDefault());
     b.addEventListener('click', () => pick(a));
     box.append(b);
@@ -783,6 +788,15 @@ function convertPrice(p, from, rate, to) {
   if (S.kleinunternehmer || from === to || p == null) return p;
   return from === 'brutto' ? r2(p / (1 + rate / 100)) : r2(p * (1 + rate / 100));
 }
+let lagerLetzte = '';
+function lagerCheck(sku) {
+  sku = String(sku || '').trim(); if (!sku) return;
+  const a = ARTIKEL.find(x => x.sku === sku); if (!a || a.lager == null) return;
+  const menge = inv.lines.filter(l => (l.sku || '').trim() === sku).reduce((s, l) => s + (num(l.menge) || 0), 0);
+  const key = sku + '|' + menge; if (key === lagerLetzte) return; lagerLetzte = key; setTimeout(() => { if (lagerLetzte === key) lagerLetzte = ''; }, 4000);
+  if (menge > a.lager) toast(`Achtung: ${a.sku} – laut Lager nur ${fmtQty(a.lager)} Stk. vorhanden, auf der Rechnung ${fmtQty(menge)} Stk.`, 'err', null, 6000);
+  else if (menge === a.lager) toast(`Hinweis: ${a.sku} ist nach dieser Rechnung ausverkauft (0 Stk.).`, '', null, 4500);
+}
 function pick(a) {
   const exist = a.sku && inv.lines.find(l => l.sku === a.sku && l.name === a.name);
   if (exist) { exist.menge = fmtQty((num(exist.menge) || 0) + 1); }
@@ -796,6 +810,7 @@ function pick(a) {
   const qty = $(`.line[data-id="${id}"] [data-f=menge]`);
   if (qty) { qty.scrollIntoView({ block: 'center' }); qty.focus({ preventScroll: true }); qty.select(); }
   toast((exist ? 'Menge erhöht: ' : 'Hinzugefügt: ') + a.name + ' – Menge eintippen, Enter zurück zur Suche', '', null, 2400);
+  setTimeout(() => lagerCheck(a.sku), 2500);
 }
 function addFree(text = '') {
   inv.lines.push({ id: uid(), sku: '', name: text, menge: '1', einheit: 'Stk', preis: '', rabatt: '', ust: String(S.standardUst) });
@@ -846,13 +861,13 @@ $('#lines').addEventListener('mouseup', e => { if (e.target.dataset.jf) { e.prev
 $('#lines').addEventListener('keydown', e => { delete e.target.dataset.jf; }, true);
 $('#lines').addEventListener('change', e => {
   const t = e.target; if (t.dataset.f === 'preis' || t.dataset.f === 'menge') {
-    const v = num(t.value); if (!isNaN(v)) { t.value = t.dataset.f === 'preis' ? fmt(v) : fmtQty(v); const l = inv.lines.find(x => x.id === t.closest('.line').dataset.id); l[t.dataset.f] = t.value; changed(false); }
+    const v = num(t.value); if (!isNaN(v)) { t.value = t.dataset.f === 'preis' ? fmt(v) : fmtQty(v); const l = inv.lines.find(x => x.id === t.closest('.line').dataset.id); l[t.dataset.f] = t.value; changed(false); if (t.dataset.f === 'menge') lagerCheck(l.sku); }
   }
 });
 $('#lines').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); e.target.dispatchEvent(new Event('change', { bubbles: true })); $('#q').focus(); } });
 $('#lines').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return; const el = b.closest('.line'); const i = inv.lines.findIndex(x => x.id === el.dataset.id); if (i < 0) return;
-  if (b.dataset.step) { const l = inv.lines[i]; l.menge = fmtQty(Math.max(0, (num(l.menge) || 0) + +b.dataset.step)); el.querySelector('[data-f=menge]').value = l.menge; changed(false); }
+  if (b.dataset.step) { const l = inv.lines[i]; l.menge = fmtQty(Math.max(0, (num(l.menge) || 0) + +b.dataset.step)); el.querySelector('[data-f=menge]').value = l.menge; changed(false); if (+b.dataset.step > 0) lagerCheck(l.sku); }
   if (b.dataset.act === 'del') { const [gone] = inv.lines.splice(i, 1); changed(true); toast('Position entfernt', '', { label: 'Rückgängig', fn: () => { inv.lines.splice(i, 0, gone); changed(true); } }); }
   if (b.dataset.act === 'up' && i > 0) { [inv.lines[i - 1], inv.lines[i]] = [inv.lines[i], inv.lines[i - 1]]; changed(true); }
 });
@@ -1190,7 +1205,8 @@ $('#btn-save').onclick = async () => {
       } else { download(blob, name); where = 'Download'; }
     }
     archive();
-    syncCloud(true);
+    lagerVormerken(inv);
+    syncCloud(true); lagerSenden();
     toast(`Rechnung ${inv.nr} gespeichert (${where}).`, 'ok', { label: 'Neue Rechnung', fn: () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); window.scrollTo({ top: 0 }); } });
   } finally { btn.disabled = false; btn.textContent = old; }
 };
@@ -1390,6 +1406,48 @@ async function odUpload(blob, name, x = inv) {
   return res.json();
 }
 const SYNC_FILE = '_rechnungsapp-daten.json', ART_FILE = '_rechnungsapp-artikel.json';
+
+/* ---------- Lagerbuchungen: verkaufte Mengen für die Excel-Produktliste ---------- */
+// Die App legt neben der Produktliste die Datei _lagerbuchungen.csv ab (eine Zeile je Rechnung und Artikel).
+// Das Excel-Makro liest sie beim Öffnen und zählt die Mengen in der Spalte „Verkauf“ dazu.
+const LAGER_DATEI = '_lagerbuchungen.csv', LAGER_KOPF = 'Rechnung;Zeitpunkt;Artikelnummer;Menge;Bezeichnung';
+function lagerZeilen(x) {
+  const m = new Map();
+  for (const l of x.lines || []) {
+    const sku = String(l.sku || '').trim(), q = num(l.menge); if (!sku || !(q > 0)) continue;
+    const z = m.get(sku) || { sku, menge: 0, name: l.name || '' }; z.menge += q; m.set(sku, z);
+  }
+  return [...m.values()];
+}
+function lagerVormerken(x) {
+  if (!x.nr || /^test/i.test(x.nr)) return;          // Test-Rechnungen buchen nichts
+  const offen = store.get('lagerOffen', {}); offen[x.nr] = { ts: Date.now(), zeilen: lagerZeilen(x) }; store.set('lagerOffen', offen);
+}
+let lagerLaeuft = false;
+async function lagerSenden() {
+  const offen = store.get('lagerOffen', {}); const nrs = Object.keys(offen);
+  if (!nrs.length || !S.od.clientId || lagerLaeuft) return;
+  lagerLaeuft = true;
+  try {
+    const path = '/me/drive/root:/' + String(S.lagerPfad || 'PREISFLIEGER/Produktlisten/Produktliste').split('/').filter(Boolean).map(encodeURIComponent).join('/') + '/' + LAGER_DATEI + ':/content';
+    const r = await graph(path); let text = '';
+    if (r.ok) text = await r.text(); else if (r.status !== 404) throw new Error('HTTP ' + r.status);
+    const sauber = s => String(s ?? '').replace(/[;\r\n]/g, ' ').trim();
+    let lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim() && l !== LAGER_KOPF);
+    for (const nr of nrs) {
+      const b = offen[nr], iso = new Date(b.ts).toISOString();
+      lines = lines.filter(l => l.split(';')[0] !== sauber(nr));
+      if (!b.zeilen.length) lines.push([sauber(nr), iso, '', '0', '(keine Lagerartikel)'].join(';'));
+      for (const z of b.zeilen) lines.push([sauber(nr), iso, sauber(z.sku), String(+z.menge.toFixed(3)), sauber(z.name)].join(';'));
+    }
+    const put = await graph(path, { method: 'PUT', headers: { 'Content-Type': 'text/plain; charset=utf-8' }, body: '\uFEFF' + [LAGER_KOPF, ...lines].join('\r\n') + '\r\n' });
+    if (!put.ok) throw new Error('HTTP ' + put.status);
+    const jetzt = store.get('lagerOffen', {});
+    for (const nr of nrs) if (jetzt[nr]?.ts === offen[nr].ts) delete jetzt[nr];
+    store.set('lagerOffen', jetzt);
+  } catch (e) { /* bleibt vorgemerkt – nächster Versuch beim nächsten Speichern oder Öffnen */ }
+  finally { lagerLaeuft = false; }
+}
 async function odSaveArtikel() {
   if (!S.od.clientId) return false;
   try { const f = store.get('feed', null); if (!f) return false; await odToken();
@@ -1426,7 +1484,7 @@ async function syncCloud(push) {
   renderAll();
   loadLogos();
   loadFeed(false);
-  if (S.od.clientId) odInit().then(app => { if (app.getActiveAccount()) { odLoadArtikel(); } if (app.getActiveAccount()) syncCloud(false).then(ok => { if (ok && !inv.saved && !inv.lines.length) { inv.nr = nextNr(); renderHead(); saveDraft(); } }); }).catch(() => { });
+  if (S.od.clientId) odInit().then(app => { if (app.getActiveAccount()) { odLoadArtikel(); } if (app.getActiveAccount()) { lagerSenden(); } if (app.getActiveAccount()) syncCloud(false).then(ok => { if (ok && !inv.saved && !inv.lines.length) { inv.nr = nextNr(); renderHead(); saveDraft(); } }); }).catch(() => { });
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 })();
 </script>

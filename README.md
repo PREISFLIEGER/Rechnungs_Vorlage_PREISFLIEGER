@@ -106,6 +106,16 @@ Ohne OneDrive-Einrichtung: Am Handy öffnet sich beim Speichern das Teilen-Menü
 Am PC landet das PDF im Download-Ordner (oder direkt im OneDrive-Ordner, wenn du den im Browser als Speicherort wählst).
 Kunden und Verlauf überträgst du dann über **Einstellungen → Sicherung herunterladen / einspielen**.
 
+## 7. Lager: Verkäufe automatisch austragen
+
+Bei **Fertig & speichern** schreibt die App die verkauften Artikel in die Datei `_lagerbuchungen.csv`
+im Ordner der Produktliste (OneDrive › PREISFLIEGER › Produktlisten › Produktliste).
+Beim nächsten **Öffnen der Excel** zählt das Makro die Mengen in der Spalte **Verkauf** dazu
+(aus `=0+1+1` wird `=0+1+1+2`) und zeigt eine Liste mit dem neuen Lagerstand. Lagerbestand und Status
+rechnen sich über die vorhandenen Formeln. Wird eine Rechnung geändert, bucht die Excel nur den Unterschied.
+Rechnungen mit der Nummer „TEST…“ werden nicht gebucht.
+In der App steht der Lagerbestand in der Artikelsuche, und sie warnt, wenn mehr verkauft wird als lagernd ist.
+
 ## 7. App-Sperre (PIN)
 
 **Einstellungen → Sperre → PIN festlegen** (4–12 Ziffern). Danach fragt die App beim Öffnen nach der PIN,
