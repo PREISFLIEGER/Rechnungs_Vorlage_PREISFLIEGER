@@ -1,0 +1,1343 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Preisflieger Rechnung</title>
+<meta name="theme-color" content="#0b2a5b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rechnung">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: eine schmale Arbeitsspalte wie ein Rechnungsblock, Aktionen unten fixiert (Daumenzone am Handy).
+   Farben aus dem Preisflieger-Logo: Marine-Blau + Flieger-Orange. */
+:root{
+  --paper:#f1f2ef; --sheet:#ffffff; --ink:#0d1b33; --muted:#59647a; --line:#dde1e7;
+  --accent:#0b2a5b; --accent-ink:#ffffff; --accent-soft:#e8edf6; --orange:#e86f00; --hit:#ffe2bf;
+  --ok:#1d7a45; --err:#b42318;
+  --f-ui:"Onest",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0a1322; --sheet:#121e36; --ink:#e8edf6; --muted:#9aa6bd; --line:#25355a;
+  --accent:#93b2ff; --accent-ink:#081431; --accent-soft:#1b2c50; --orange:#ff9a3d; --hit:#4a2f12;
+  --ok:#5fd39a; --err:#ff8a7a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0a1322; --sheet:#121e36; --ink:#e8edf6; --muted:#9aa6bd; --line:#25355a;
+  --accent:#93b2ff; --accent-ink:#081431; --accent-soft:#1b2c50; --orange:#ff9a3d; --hit:#4a2f12;
+  --ok:#5fd39a; --err:#ff8a7a; color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;color:var(--ink);font:15px/1.45 var(--f-ui);
+  background:radial-gradient(900px 340px at 105% -40px,color-mix(in srgb,var(--orange) 13%,transparent),transparent 70%),radial-gradient(700px 300px at -10% 0,color-mix(in srgb,var(--accent) 9%,transparent),transparent 70%),var(--paper);background-attachment:fixed;
+  padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+/* Kopfzeile */
+.top{position:sticky;top:0;z-index:20;background:var(--sheet);color:var(--ink);border-bottom:3px solid var(--orange);
+  padding-top:env(safe-area-inset-top,0px);box-shadow:0 2px 14px rgb(11 42 91 / .08)}
+.top-in{max-width:780px;margin:0 auto;display:flex;align-items:center;gap:10px;
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{margin-right:auto;display:flex;align-items:center;gap:10px;min-width:0}
+.brand img{height:34px;width:auto;background:#fff;border-radius:8px;padding:3px 5px}
+.brand b{display:block;font-weight:700;font-size:17px;letter-spacing:.08em;color:var(--accent);line-height:1.05}
+.brand small{display:block;font-size:11.5px;color:var(--orange);font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+.top button{background:transparent;border:1px solid var(--line);color:var(--accent);
+  border-radius:8px;padding:6px 11px;font-size:14px;cursor:pointer}
+.top button:hover{border-color:var(--accent);background:var(--accent-soft)}
+
+main{max-width:780px;margin:0 auto;padding-block:18px 24px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:22px}
+section{display:flex;flex-direction:column;gap:10px;min-width:0}
+h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--accent);margin:0;
+  display:flex;align-items:center;gap:8px}
+h2 .spacer{flex:1}
+.sheet{background:var(--sheet);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted);min-width:0}
+label.f.chk{flex-direction:row;align-items:center;gap:10px;font-size:14px;color:var(--ink)}
+.in, label.f input:not([type=checkbox]):not([type=file]), label.f select, label.f textarea{
+  width:100%;min-width:0;background:var(--sheet);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:15px;color:var(--ink)}
+label.f textarea{resize:vertical;min-height:70px;line-height:1.4}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.grid.two{grid-template-columns:1fr 1fr}
+.span2{grid-column:1/-1}
+
+/* Rechnungskopf */
+.nr-wrap{display:flex;gap:6px}
+.nr-wrap input{font-family:var(--f-num);font-size:17px!important;font-weight:500}
+.nr-wrap button{flex:none}
+.btn{border:1px solid var(--line);background:var(--sheet);border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--accent);padding-inline:6px}
+.btn.small{font-size:13px;padding:5px 9px}
+
+/* Suche */
+.search{position:relative}
+.search input{width:100%;font-size:16px;padding:13px 14px 13px 40px;border-radius:var(--r);border:1.5px solid var(--accent);background:var(--sheet);box-shadow:0 3px 0 color-mix(in srgb,var(--orange) 55%,transparent)}
+.search svg{position:absolute;left:13px;top:14px;width:18px;height:18px;color:var(--muted)}
+.results{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:15;background:var(--sheet);border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:0 12px 32px rgb(10 16 40 / .18);max-height:min(60vh,420px);overflow:auto;padding:4px}
+.res{display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;align-items:baseline;width:100%;text-align:left;border:0;background:transparent;
+  padding:9px 10px;border-radius:7px;cursor:pointer}
+.res:hover,.res.sel{background:var(--accent-soft)}
+.res .sku{font-family:var(--f-num);font-size:12.5px;color:var(--muted)}
+.res .nm{min-width:0;overflow-wrap:anywhere}
+.res .pr{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:14px}
+.res mark{background:var(--hit);color:inherit;border-radius:2px}
+.badge{display:inline-block;font-size:11px;font-weight:600;color:var(--err);border:1px solid currentColor;border-radius:999px;padding:0 6px;margin-left:4px;vertical-align:1px}
+.res-empty{padding:12px;color:var(--muted);font-size:14px}
+.feedinfo{font-size:12.5px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block}
+.dot.warn{background:var(--err)}
+
+/* Positionen */
+.lines{display:flex;flex-direction:column;gap:8px}
+.line{background:var(--sheet);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.l-top{display:flex;gap:8px;align-items:center}
+.l-pos{font-family:var(--f-num);font-size:12px;color:var(--muted);width:20px;flex:none}
+.l-sku{font-family:var(--f-num);font-size:13px;border:0;background:transparent;color:var(--muted);width:9.5em;min-width:0;padding:2px 0}
+.l-name{flex:1;border:0;background:transparent;font-weight:500;resize:none;min-width:0;padding:2px 0;line-height:1.35;overflow:hidden}
+.l-sku:focus,.l-name:focus{outline:none;box-shadow:inset 0 -1.5px 0 var(--accent)}
+.icon-btn{border:0;background:transparent;color:var(--muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:20px;line-height:1;flex:none}
+.icon-btn:hover{background:var(--accent-soft);color:var(--err)}
+.l-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.stepper{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.stepper button{border:0;background:var(--paper);width:34px;cursor:pointer;font-size:17px}
+.stepper input{width:74px;border:0;text-align:center;background:var(--sheet);font-family:var(--f-num);font-size:16px;font-weight:500;padding:7px 2px}
+.l-rab{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--sheet);color:var(--muted);padding-right:8px;font-size:13px}
+.l-rab input{width:46px;border:0;background:transparent;padding:7px 2px 7px 8px;font-family:var(--f-num);text-align:right;color:var(--ink)}
+.l-rab.on{border-color:var(--orange);color:var(--orange)}
+.l-unit{width:58px;border:1px solid var(--line);border-radius:8px;padding:7px 8px;background:var(--sheet)}
+.l-price{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;padding-left:8px;background:var(--sheet);color:var(--muted)}
+.l-price input{width:92px;border:0;background:transparent;padding:7px 8px 7px 4px;font-family:var(--f-num);text-align:right;color:var(--ink)}
+.l-ust{border:1px solid var(--line);border-radius:8px;padding:7px 6px;background:var(--sheet)}
+.l-total{margin-left:auto;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:500;font-size:15.5px}
+.empty{margin:0;padding:18px 14px;border:1.5px dashed var(--line);border-radius:var(--r);color:var(--muted);font-size:14px;text-align:center}
+.mode{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;text-transform:none;letter-spacing:0}
+.mode button{border:0;background:transparent;padding:3px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
+.mode button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+
+/* Summen + Zahlung */
+.totals{display:grid;grid-template-columns:1fr auto;row-gap:4px;font-size:14.5px}
+.totals .v{padding-left:14px}
+.totals .v{font-family:var(--f-num);font-variant-numeric:tabular-nums;text-align:right}
+.totals .lbl{color:var(--muted)}
+.totals .grand{font-size:19px;font-weight:700;color:var(--accent);padding-top:8px;border-top:2px solid var(--orange);margin-top:4px}
+.pay{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.pay .qr{background:#fff;padding:6px;border-radius:8px;border:1px solid var(--line);width:132px;height:132px;flex:none;cursor:zoom-in}
+.pay .qr svg{width:100%;height:100%;display:block}
+.pay .txt{flex:1;min-width:180px;font-size:13.5px;color:var(--muted)}
+.pay .txt b{color:var(--ink);font-weight:600}
+.qr-big{position:fixed;inset:0;z-index:60;background:rgb(0 0 0 / .72);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:24px;color:#fff;text-align:center}
+.qr-big .box{background:#fff;padding:16px;border-radius:14px;width:min(80vw,380px);aspect-ratio:1;max-width:100%}
+.qr-big .box svg{width:100%;height:100%}
+
+/* Aktionsleiste */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:25;background:color-mix(in srgb,var(--sheet) 94%,transparent);backdrop-filter:blur(8px);
+  border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.bar-in{max-width:780px;margin:0 auto;display:flex;gap:8px;align-items:center;padding-block:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar .sum{margin-right:auto;display:flex;flex-direction:column;line-height:1.15}
+.bar .sum small{font-size:11.5px;color:var(--muted)}
+.bar .sum strong{font-family:var(--f-num);font-size:18px}
+.bar .btn{padding:11px 14px}
+.bar .btn.pri{padding:11px 18px;background:var(--orange);border-color:var(--orange);color:#fff}
+.foot{display:flex;align-items:center;justify-content:center;gap:14px;color:var(--muted);font-size:12px;padding-top:6px}
+.foot img{height:54px;width:auto;background:#fff;border-radius:8px;padding:4px}
+
+/* Dialoge */
+dialog{border:0;padding:0;border-radius:14px;width:min(720px,calc(100vw - 24px));max-height:calc(100dvh - 40px);background:var(--paper);color:var(--ink);
+  box-shadow:0 30px 80px rgb(0 0 0 / .35)}
+dialog::backdrop{background:rgb(10 14 30 / .5)}
+.dlg-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--paper);border-bottom:1px solid var(--line)}
+.dlg-head h3{margin:0;font-size:17px;margin-right:auto}
+.dlg-body{padding:16px;display:flex;flex-direction:column;gap:22px}
+.dlg-body section .sheet{display:flex;flex-direction:column;gap:10px}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.hint code{font-family:var(--f-num);font-size:12px;background:var(--accent-soft);padding:1px 4px;border-radius:4px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hist{display:flex;flex-direction:column;gap:6px}
+.h-item{display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;align-items:center;background:var(--sheet);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+.h-item .nr{font-family:var(--f-num);font-weight:500}
+.h-item .k{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.h-item .d{font-size:12.5px;color:var(--muted)}
+.h-item .b{font-family:var(--f-num);text-align:right}
+.h-item .acts{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.logo-prev{max-height:56px;max-width:200px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px}
+
+/* Meldungen */
+.toasts{position:fixed;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:70;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding-inline:16px}
+.toast{pointer-events:auto;background:var(--ink);color:var(--paper);padding:10px 14px;border-radius:10px;font-size:14px;max-width:560px;box-shadow:0 8px 24px rgb(0 0 0 / .25);display:flex;gap:12px;align-items:center}
+.toast.err{background:var(--err);color:#fff}
+.toast.ok{background:var(--ok);color:#fff}
+.toast button{background:transparent;border:1px solid currentColor;color:inherit;border-radius:7px;padding:4px 9px;cursor:pointer;flex:none}
+
+@media (max-width:520px){
+  .bar .btn:not(.pri) .lbl,.top .lbl{display:none}
+  .top-in{gap:6px}.brand{gap:7px}.brand img{height:30px}.brand b{font-size:14px;letter-spacing:.04em}.brand small{font-size:10.5px}.brand>span{min-width:0;overflow:hidden}
+  .top button{padding:6px 9px}
+  .grid.two{grid-template-columns:1fr}
+  .l-total{width:100%;text-align:right;margin-left:0}
+  input,select,textarea{font-size:16px!important}
+}
+@media (prefers-reduced-motion:no-preference){.toast{animation:pop .18s ease-out}@keyframes pop{from{transform:translateY(8px);opacity:0}}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <img src="img/mark.png" alt="">
+      <span><b>PREISFLIEGER</b><small>Rechnung</small></span>
+    </div>
+    <button id="btn-new" type="button">Neu</button>
+    <button id="btn-hist" type="button">Verlauf</button>
+    <button id="btn-set" type="button" aria-label="Einstellungen" title="Einstellungen"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true" style="vertical-align:-4px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg><span class="lbl"> Einstellungen</span></button>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>Rechnung</h2>
+    <div class="grid">
+      <label class="f">Rechnungsnummer
+        <span class="nr-wrap"><input id="inv-nr" class="in" autocomplete="off"><button class="btn" id="btn-nextnr" type="button" title="Nächste freie Nummer">+1</button></span>
+      </label>
+      <label class="f">Rechnungsdatum<input id="inv-datum" type="date"></label>
+      <label class="f">Leistungs-/Lieferdatum<input id="inv-leistung" type="date"></label>
+    </div>
+  </section>
+
+  <section>
+    <h2>Kunde <span class="spacer"></span><button class="btn ghost small" id="btn-kunde-clear" type="button">leeren</button></h2>
+    <div class="sheet grid two">
+      <label class="f span2">Name / Firma<input id="k-name" list="kundenliste" autocomplete="off" placeholder="Name tippen – bekannte Kunden werden vorgeschlagen"></label>
+      <label class="f span2">Zusatz (Abteilung, z. Hd.)<input id="k-zusatz"></label>
+      <label class="f">Straße, Nr.<input id="k-strasse"></label>
+      <label class="f">PLZ Ort<input id="k-ort"></label>
+      <label class="f">Land<input id="k-land" placeholder="leer = Österreich"></label>
+      <label class="f">UID-Nr. des Kunden<input id="k-uid" placeholder="optional, z. B. ATU…"></label>
+    </div>
+    <datalist id="kundenliste"></datalist>
+  </section>
+
+  <section>
+    <h2>Positionen <span class="spacer"></span>
+      <span class="mode" role="group" aria-label="Preise eingeben als">
+        <button type="button" id="mode-brutto" aria-pressed="true">brutto</button><button type="button" id="mode-netto" aria-pressed="false">netto</button>
+      </span>
+    </h2>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" autocomplete="off" enterkeyhint="done" placeholder="Artikelnummer oder Name suchen …" aria-label="Artikel suchen">
+      <div class="results" id="results" hidden></div>
+    </div>
+    <div class="feedinfo"><span class="dot" id="feed-dot"></span><span id="feed-status">Artikel werden geladen …</span>
+      <button class="btn ghost small" id="btn-free" type="button">+ freie Position</button></div>
+    <div class="lines" id="lines"></div>
+  </section>
+
+  <section>
+    <h2>Summe &amp; Zahlung</h2>
+    <div class="sheet"><div class="totals" id="totals"></div></div>
+    <div class="grid">
+      <label class="f">Rabatt auf alles in %<input id="rab-proz" inputmode="decimal" placeholder="0"></label>
+      <label class="f">Skonto in %<input id="sk-proz" inputmode="decimal" placeholder="0"></label>
+      <label class="f">Skonto-Frist (Tage)<input id="sk-tage" inputmode="numeric"></label>
+    </div>
+    <div class="sheet pay" id="pay"></div>
+    <label class="f">Bemerkung auf der Rechnung<textarea id="inv-notiz" rows="2" placeholder="optional, z. B. Lieferung erfolgte am …"></textarea></label>
+  </section>
+  <div class="foot"><img src="img/logo-recycled-600.png" alt="Recycled Packaging"></div>
+</main>
+
+<div class="bar"><div class="bar-in">
+  <div class="sum"><small>Gesamtbetrag</small><strong id="bar-sum">€ 0,00</strong></div>
+  <button class="btn" id="btn-preview" type="button" title="PDF ansehen / drucken"><span aria-hidden="true">👁</span> <span class="lbl">Vorschau</span></button>
+  <button class="btn" id="btn-share" type="button" title="PDF teilen oder herunterladen"><span aria-hidden="true">⇪</span> <span class="lbl">PDF</span></button>
+  <button class="btn pri" id="btn-save" type="button">Fertig &amp; speichern</button>
+</div></div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- Verlauf -->
+<dialog id="dlg-hist">
+  <div class="dlg-head"><h3>Verlauf</h3><button class="btn" data-close type="button">Schließen</button></div>
+  <div class="dlg-body">
+    <input id="hist-q" class="in" type="search" placeholder="Nummer oder Kunde suchen …" aria-label="Verlauf durchsuchen">
+    <div class="hist" id="hist-list"></div>
+  </div>
+</dialog>
+
+<!-- Einstellungen -->
+<dialog id="dlg-set">
+  <div class="dlg-head"><h3>Einstellungen</h3><button class="btn" data-close type="button">Fertig</button></div>
+  <div class="dlg-body">
+    <section><h2>Absender</h2><div class="sheet">
+      <div class="grid two">
+        <label class="f span2">Name / Firma<input id="s-firma-name" data-s="firma.name"></label>
+        <label class="f span2">Zusatzzeile (z. B. Shopname)<input id="s-firma-zeile2" data-s="firma.zeile2"></label>
+        <label class="f">Straße<input id="s-firma-strasse" data-s="firma.strasse"></label>
+        <label class="f">PLZ Ort<input id="s-firma-ort" data-s="firma.ort"></label>
+        <label class="f">E-Mail<input id="s-firma-mail" data-s="firma.mail"></label>
+        <label class="f">Telefon<input id="s-firma-tel" data-s="firma.tel"></label>
+        <label class="f">Web<input id="s-firma-web" data-s="firma.web"></label>
+        <label class="f">UID-Nummer<input id="s-firma-uid" data-s="firma.uid"></label>
+      </div>
+      <div class="row"><img id="logo-prev" class="logo-prev" alt="Logo oben" hidden>
+        <label class="btn small">Logo oben wählen …<input id="logo-file" data-logo="logo" type="file" accept="image/*" hidden></label>
+        <button class="btn ghost small" data-logodel="logo" type="button">entfernen</button></div>
+      <div class="row"><img id="logo2-prev" class="logo-prev" alt="Logo unten" hidden>
+        <label class="btn small">Logo unten wählen …<input id="logo2-file" data-logo="logo2" type="file" accept="image/*" hidden></label>
+        <button class="btn ghost small" data-logodel="logo2" type="button">entfernen</button></div>
+    </div></section>
+
+    <section><h2>Bank &amp; QR-Code</h2><div class="sheet">
+      <div class="grid two">
+        <label class="f">Bank<input id="s-bank-name" data-s="bank.name"></label>
+        <label class="f">Kontoinhaber<input id="s-bank-inhaber" data-s="bank.inhaber"></label>
+        <label class="f">IBAN<input id="s-bank-iban" data-s="bank.iban"></label>
+        <label class="f">BIC<input id="s-bank-bic" data-s="bank.bic"></label>
+      </div>
+      <label class="f chk"><input type="checkbox" id="s-qr" data-s="qr"> Zahlungs-QR-Code mit Rechnungsbetrag auf die Rechnung drucken</label>
+      <p class="hint">Standard-QR-Code für Überweisungen (EPC/GiroCode), wird direkt im Gerät erzeugt – kostenlos, ohne Anbieter. Funktioniert mit George, Raiffeisen, Bank Austria, Bawag und den meisten Banking-Apps in Europa.</p>
+    </div></section>
+
+    <section><h2>Rechnung</h2><div class="sheet">
+      <div class="grid two">
+        <label class="f">Nummernformat<input id="s-nrformat" data-s="nummernFormat"></label>
+        <label class="f">Zuletzt vergebene Nummer<input id="s-lastnr" class="num"></label>
+      </div>
+      <p class="hint"><code>{JJ}</code> = Jahr zweistellig, <code>{JJJJ}</code> = vierstellig, <code>{N}</code> = laufende Nummer (<code>{NNN}</code> = immer 3 Stellen). Zum Jahreswechsel beginnt die Zählung wieder bei 1. Im Dateinamen steht <code>{NR}</code> für die Nummer und <code>{KUNDE}</code> für den Kundennamen.</p>
+      <div class="grid two">
+        <label class="f">Preise im Feed sind<select id="s-feedpreis" data-s="feedPreis"><option value="brutto">brutto (inkl. USt)</option><option value="netto">netto (exkl. USt)</option></select></label>
+        <label class="f">Neue Rechnungen erfassen in<select id="s-modus" data-s="preisModus"><option value="brutto">Bruttopreisen</option><option value="netto">Nettopreisen</option></select></label>
+        <label class="f">Standard-USt-Satz<select id="s-ust" data-s="standardUst"><option value="20">20 %</option><option value="13">13 %</option><option value="10">10 %</option><option value="0">0 %</option></select></label>
+        <label class="f">Skonto-Frist Standard (Tage)<input id="s-sktage" data-s="skontoTage" inputmode="numeric"></label>
+        <label class="f">Skonto Standard in % (leer = keins)<input id="s-skproz" data-s="skontoProz" inputmode="decimal"></label>
+        <label class="f">PDF-Dateiname<input id="s-dateiname" data-s="dateiName"></label>
+      </div>
+      <label class="f chk"><input type="checkbox" id="s-ku" data-s="kleinunternehmer"> Kleinunternehmer (keine Umsatzsteuer ausweisen)</label>
+      <label class="f">Hinweis Kleinunternehmer<input id="s-kutext" data-s="kuText"></label>
+      <label class="f">Zahlungs- und Lieferbedingungen (Fußtext)<textarea id="s-bed" data-s="bedingungen" rows="6"></textarea></label>
+    </div></section>
+
+    <section><h2>Artikel-Feed</h2><div class="sheet">
+      <label class="f">Feed-Adresse<input id="s-feedurl" data-s="feedUrl" placeholder="artikel.csv"></label>
+      <p class="hint">Standard ist die Datei <code>artikel.csv</code> in deinem GitHub-Projekt. Das ist die Shöpping-CSV aus deiner Produktliste – das Excel-Makro lädt sie bei jedem Speichern automatisch hoch. Die Preise darin sind brutto, die App rechnet netto selbst aus. Erlaubt sind CSV (Excel, Shopify-Export), XLSX, Google-Shopping-XML und JSON. Ein direkter Shopify-Link geht auch, wenn der Anbieter den Abruf erlaubt – sonst holt GitHub den Feed automatisch (siehe Anleitung).</p>
+      <div class="row">
+        <button class="btn pri small" id="btn-feed-load" type="button">Feed jetzt neu laden</button>
+        <label class="btn small">Produktliste (Excel) importieren …<input id="feed-file" type="file" accept=".xlsm,.xlsx,.xls,.csv,.txt,.tsv,.xml,.json" hidden></label>
+        <button class="btn small" id="btn-feed-csv" type="button">Artikelliste für GitHub herunterladen</button>
+      </div>
+      <p class="hint">Die Produktliste (.xlsm) wird nur auf diesem Gerät gelesen: übernommen werden Artikelnummer, EAN, Produktname, <b>Preis VK (Spalte AJ, exkl. USt)</b>, MwSt. und Status – Einkaufspreise und Spannen nicht. Mit OneDrive-Verbindung bekommt das andere Gerät die neue Liste automatisch. Die Excel-Datei selbst nie auf GitHub hochladen.</p>
+      <p class="hint" id="feed-detail"></p>
+    </div></section>
+
+    <section><h2>OneDrive</h2><div class="sheet">
+      <label class="f">Anwendungs-ID (Client-ID)<input id="s-od-id" data-s="od.clientId" placeholder="xxxxxxxx-xxxx-…" class="num"></label>
+      <label class="f">Link zum Ordner „Rechnungen“<input id="s-od-link" data-s="od.link" placeholder="https://1drv.ms/f/…"></label>
+      <div class="grid two">
+        <label class="f">Jahresordner darin<input id="s-od-jahr" data-s="od.jahresOrdner" placeholder="Preisflieger {JJJJ}"></label>
+        <label class="f">Ersatz-Pfad (ohne Link)<input id="s-od-ordner" data-s="od.ordner" placeholder="Rechnungen"></label>
+      </div>
+      <p class="hint">PDFs landen in <code>Rechnungen › Preisflieger 2026</code>. Ab der ersten Rechnung 2027 legt die App den Ordner <code>Preisflieger 2027</code> selbst an. Nummern, Kunden und Verlauf werden zwischen PC und Handy abgeglichen. Ohne Client-ID wird das PDF heruntergeladen bzw. am Handy über „Teilen“ an die OneDrive-App übergeben.</p>
+      <div class="row"><button class="btn small" id="btn-od-login" type="button">Mit OneDrive verbinden</button>
+        <button class="btn ghost small" id="btn-od-logout" type="button">Abmelden</button><span class="hint" id="od-status"></span></div>
+    </div></section>
+
+    <section><h2>Daten</h2><div class="sheet">
+      <p class="hint">Einstellungen, Kunden und Verlauf liegen auf diesem Gerät. Mit der Sicherung kannst du alles auf ein anderes Gerät übertragen.</p>
+      <div class="row"><button class="btn small" id="btn-export" type="button">Sicherung herunterladen</button>
+        <label class="btn small">Sicherung einspielen …<input id="imp-file" type="file" accept=".json" hidden></label>
+        <button class="btn small" id="btn-theme" type="button">Hell/Dunkel</button></div>
+      <p class="hint">Version <span id="ver"></span></p>
+    </div></section>
+  </div>
+</dialog>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="vendor/papaparse.min.js"></script>
+<script>
+'use strict';
+const VERSION = '1.0.0';
+const MSAL_URLS = ['https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js','https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js'];
+const XLSX_URLS = ['vendor/xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* ---------- Speicher ---------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('pf.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('pf.' + k, JSON.stringify(v)); return true; } catch (e) { toast('Gerätespeicher voll – bitte alte Einträge im Verlauf löschen.', 'err'); return false; } }
+};
+
+const BEDINGUNGEN = 'Zahlungskondition: Der Rechnungsbetrag ist sofort fällig. Ein ausgewiesenes Skonto darf bei Zahlung innerhalb von 10 Tagen ab Rechnungsdatum vom Rechnungsbetrag abgezogen werden. Nach Ablauf der Frist ist der Rechnungsbetrag ohne Abzug zahlbar.\nDie Ware bleibt bis zur vollständigen Bezahlung unser Eigentum. Gerichtsstand: Melk.\nBeanstandungen können nur innerhalb von 8 Tagen nach Erhalt der Ware berücksichtigt werden.';
+const DEFAULTS = {
+  firma: { name: 'Martina Grünsteidl', zeile2: '', strasse: 'Hofedl 16', ort: '3683 Yspertal', mail: 'preisflieger@outlook.com', tel: '', web: '', uid: 'ATU82683614' },
+  bank: { name: 'Raiffeisenbank Grein eGen', inhaber: 'Grünsteidl Martina', iban: 'AT85 3406 8000 0007 3379', bic: 'RZOOAT2L068' },
+  qr: true, kleinunternehmer: false,
+  kuText: 'Umsatzsteuerbefreit – Kleinunternehmer gem. § 6 Abs. 1 Z 27 UStG.',
+  preisModus: 'netto', feedPreis: 'netto', standardUst: '20', skontoTage: '10', skontoProz: '',
+  feedUrl: 'artikel.csv', nummernFormat: 'RE_{JJ}_{N}', dateiName: '{NR} {KUNDE}', bedingungen: BEDINGUNGEN,
+  od: { clientId: '', ordner: 'Rechnungen', jahresOrdner: 'Preisflieger {JJJJ}',
+        link: 'https://1drv.ms/f/c/cf660f8fc97bad14/IgBj1ZZZdngOQY13-ejuata2ASemxCEWKScN9_w_uQ0MNUg?e=rJMasQ', ziel: null },
+  logo: 'img/logo-preisflieger-600.png', logo2: 'img/logo-recycled-600.png'
+};
+function merge(base, over) {
+  const out = { ...base };
+  for (const k in over || {}) {
+    if (over[k] && typeof over[k] === 'object' && !Array.isArray(over[k]) && base[k] && typeof base[k] === 'object') out[k] = merge(base[k], over[k]);
+    else out[k] = over[k];
+  }
+  return out;
+}
+let S = merge(DEFAULTS, store.get('settings', {}));
+const saveSettings = () => store.set('settings', S);
+
+/* ---------- Format-Helfer ---------- */
+const r2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
+function fmt(n) {
+  const neg = n < 0; const [i, d] = Math.abs(n).toFixed(2).split('.');
+  return (neg ? '-' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d;
+}
+const eur = n => '€ ' + fmt(n);
+function fmtQty(n) { return (Math.round(n * 1000) / 1000).toString().replace('.', ','); }
+function num(v) {
+  if (typeof v === 'number') return v;
+  if (v == null) return NaN;
+  let s = String(v).replace(/[^\d,.\-]/g, '');
+  if (!s) return NaN;
+  const c = s.lastIndexOf(','), p = s.lastIndexOf('.');
+  if (c > -1 && p > -1) s = c > p ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  else if (c > -1) s = s.replace(/,/g, '.');
+  return parseFloat(s);
+}
+const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+function dfmt(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; }
+function addDays(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + (parseInt(n) || 0)); return d.toISOString().slice(0, 10); }
+const safeName = s => String(s || '').replace(/[\/\\:*?"<>|#%]+/g, '-').replace(/\s+/g, ' ').trim();
+const uid = () => Math.random().toString(36).slice(2, 10);
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- Meldungen ---------- */
+function toast(msg, kind = '', action = null, ms = 4200) {
+  const el = document.createElement('div'); el.className = 'toast ' + kind;
+  const span = document.createElement('span'); span.textContent = msg; el.append(span);
+  if (action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = action.label; b.onclick = () => { el.remove(); action.fn(); }; el.append(b); }
+  $('#toasts').append(el);
+  setTimeout(() => el.remove(), action ? ms * 2 : ms);
+}
+
+/* ---------- Rechnungsnummern ---------- */
+function fmtNr(jahr, n, f = S.nummernFormat) {
+  return f.replace(/\{JJJJ\}/g, jahr).replace(/\{JJ\}/g, String(jahr).slice(-2)).replace(/\{(N+)\}/g, (m, ns) => String(n).padStart(ns.length, '0'));
+}
+function nrRegex(f) {
+  const groups = [];
+  const re = f.split(/(\{JJJJ\}|\{JJ\}|\{N+\})/).map(p => {
+    if (p === '{JJJJ}') { groups.push('y4'); return '(\\d{4})'; }
+    if (p === '{JJ}') { groups.push('y2'); return '(\\d{2})'; }
+    if (/^\{N+\}$/.test(p)) { groups.push('n'); return '(\\d+)'; }
+    return p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }).join('');
+  return { re: new RegExp(re), groups };
+}
+function parseNr(str, f = S.nummernFormat) {
+  const { re, groups } = nrRegex(f); const m = String(str || '').match(re); if (!m) return null;
+  let jahr = null, n = null;
+  groups.forEach((g, i) => { const v = m[i + 1]; if (g === 'y4') jahr = +v; if (g === 'y2') jahr = 2000 + +v; if (g === 'n') n = +v; });
+  return n == null ? null : { jahr, n };
+}
+const hasYear = () => /\{JJ/.test(S.nummernFormat);
+function getCounter() { return store.get('zaehler', { jahr: 2026, n: 30 }); }
+function nextNr() {
+  const y = new Date().getFullYear(); const z = getCounter();
+  const n = (!hasYear() || z.jahr === y) ? z.n : 0;
+  return fmtNr(y, n + 1);
+}
+function bumpCounter(nr) {
+  const p = parseNr(nr); if (!p) return;
+  const y = p.jahr ?? new Date().getFullYear(); const z = getCounter();
+  if (hasYear() ? (y > z.jahr || (y === z.jahr && p.n > z.n)) : p.n > z.n) store.set('zaehler', { jahr: y, n: p.n });
+}
+
+/* ---------- Rechnung (Entwurf) ---------- */
+function blankInvoice() {
+  return { id: uid(), nr: nextNr(), datum: today(), leistung: today(), kunde: {}, lines: [], skonto: { proz: S.skontoProz || '', tage: S.skontoTage }, rabatt: '', notiz: '', modus: S.preisModus, saved: false };
+}
+let inv = store.get('draft', null);
+if (!inv || inv.saved) inv = blankInvoice();
+let draftTimer;
+function saveDraft() { clearTimeout(draftTimer); draftTimer = setTimeout(() => store.set('draft', inv), 250); }
+
+function compute(x = inv) {
+  const ku = !!S.kleinunternehmer, brutto = x.modus === 'brutto';
+  const base = {};
+  const rows = x.lines.map(l => {
+    const q = num(l.menge) || 0, p = num(l.preis) || 0, rate = ku ? 0 : (num(l.ust) || 0);
+    const rab = Math.min(100, Math.max(0, num(l.rabatt) || 0));
+    const total = r2(q * p * (1 - rab / 100)); base[rate] = r2((base[rate] || 0) + total);
+    return { ...l, q, p, rate, rab, total };
+  });
+  const gr = Math.min(100, Math.max(0, num(x.rabatt) || 0));
+  const zwischen = r2(Object.values(base).reduce((a, b) => a + b, 0)); let rabBetrag = 0;
+  let net = 0, vat = 0, gross = 0; const groups = [];
+  Object.keys(base).map(Number).sort((a, b) => b - a).forEach(rate => {
+    const minus = gr ? r2(base[rate] * gr / 100) : 0; rabBetrag = r2(rabBetrag + minus);
+    const b = r2(base[rate] - minus); let n, v, g;
+    if (ku) { n = b; v = 0; g = b; }
+    else if (brutto) { g = b; n = r2(b / (1 + rate / 100)); v = r2(g - n); }
+    else { n = b; v = r2(b * rate / 100); g = r2(n + v); }
+    net = r2(net + n); vat = r2(vat + v); gross = r2(gross + g); groups.push({ rate, net: n, vat: v, gross: g });
+  });
+  const sk = num(x.skonto?.proz) || 0, skBetrag = sk > 0 ? r2(gross * sk / 100) : 0;
+  return { rows, groups, net, vat, gross, skonto: sk, skBetrag, zahlSkonto: r2(gross - skBetrag), rabatt: gr, rabBetrag, zwischen, lineRab: rows.some(r => r.rab > 0) };
+}
+
+/* ---------- Zahlungs-QR (EPC / GiroCode) ---------- */
+function epcText(amount, nr) {
+  const iban = (S.bank.iban || '').replace(/\s/g, '').toUpperCase();
+  const bic = (S.bank.bic || '').replace(/\s/g, '').toUpperCase();
+  const name = (S.bank.inhaber || S.firma.name || '').slice(0, 70);
+  const amt = amount >= 0.01 && amount <= 999999999.99 ? 'EUR' + amount.toFixed(2) : '';
+  return ['BCD', '002', '1', 'SCT', bic, name, iban, amt, '', '', ('Rechnung ' + nr).slice(0, 140)].join('\n');
+}
+function makeQR(text) {
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+  const q = qrcode(0, 'M'); q.addData(text, 'Byte'); q.make(); return q;
+}
+function qrSvg(text) {
+  const q = makeQR(text), n = q.getModuleCount(); let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c + 4} ${r + 4}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${n + 8} ${n + 8}" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+const qrPossible = () => S.qr && (S.bank.iban || '').replace(/\s/g, '').length >= 15;
+
+/* ---------- Artikel-Feed ---------- */
+let ARTIKEL = [];
+const COLS = {
+  sku: ['artikelnummer', 'artikelnr', 'artnr', 'variantsku', 'sku', 'gid', 'id', 'nummer', 'nr', 'produktnummer', 'itemnumber', 'mpn', 'gmpn', 'ean', 'gtin', 'ggtin'],
+  name: ['bezeichnung', 'artikelbezeichnung', 'artikelname', 'produktname', 'name', 'titel', 'title', 'gtitle', 'artikel', 'produkt', 'beschreibung', 'description'],
+  price: ['vkbrutto', 'bruttopreis', 'preisbrutto', 'vkpreisbrutto', 'vknetto', 'nettopreis', 'preisnetto', 'vkpreisnetto', 'preis', 'vkpreis', 'verkaufspreis', 'vk', 'variantprice', 'gprice', 'price', 'brutto', 'netto', 'einzelpreis', 'gsaleprice'],
+  unit: ['einheit', 'mengeneinheit', 'me', 'unit', 'verpackungseinheit'],
+  vat: ['ust', 'mwst', 'ustsatz', 'mwstsatz', 'steuersatz', 'steuer', 'vat', 'tax', 'taxrate', 'usts']
+};
+const hnorm = h => String(h || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/[^a-z0-9]/g, '');
+function findCol(keys, cands) {
+  const nk = keys.map(k => [k, hnorm(k)]);
+  for (const c of cands) { const hit = nk.find(([, n]) => n === c); if (hit) return hit[0]; }
+  for (const c of cands) { if (c.length < 4) continue; const hit = nk.find(([, n]) => n.includes(c)); if (hit) return hit[0]; }
+  return null;
+}
+function parseVat(v) { const n = num(v); if (isNaN(n)) return null; return n > 0 && n < 1 ? r2(n * 100) : n; }
+function mapRows(rows) {
+  rows = rows.filter(r => r && typeof r === 'object');
+  if (!rows.length) return [];
+  const keys = [...new Set(rows.slice(0, 50).flatMap(r => Object.keys(r)))];
+  const nk = keys.map(hnorm);
+  // Shopify-Produktexport
+  if (nk.includes('handle') && nk.includes('variantprice')) return mapShopifyCsv(rows, keys);
+  // PREISFLIEGER-Produktliste: Preis = Spalte „Preis VK“ (AJ, exkl. USt), Nummer = eigene oder Hersteller-Artikelnummer
+  if (nk.includes('preisvk') && nk.includes('produktnametitel')) {
+    const k = n => keys[nk.indexOf(n)];
+    const kE = k('eigeneartikelnummer'), kH = k('herstellerartikelnummer'), kEan = k('eanisbn'), kN = k('produktnametitel'), kP = k('preisvk'), kV = k('mwst'), kS = k('status');
+    const str = v => v == null ? '' : String(v).trim();
+    return rows.map(r => ({
+      sku: str(r[kE]) || str(r[kH]) || str(r[kEan]), ean: str(r[kEan]), name: str(r[kN]).replace(/\s+/g, ' '),
+      preis: typeof r[kP] === 'number' ? r[kP] : num(r[kP]), basis: 'netto', einheit: '', ust: kV ? parseVat(r[kV]) : null, status: kS ? str(r[kS]) : ''
+    })).filter(a => a.name && !isNaN(a.preis) && a.preis > 0);
+  }
+  // Shöpping-CSV (aus der Produktliste per Makro erzeugt): Preis = „VK inkl. MwSt.“ (brutto), MwSt. als „20%“
+  if (nk.includes('vkinklmwst') && nk.includes('produktnametitel')) {
+    const k = n => keys[nk.indexOf(n)];
+    const kE = k('eigeneartikelnummer'), kH = k('herstellerartikelnummer'), kEan = k('eanisbn'), kN = k('produktnametitel'), kP = k('vkinklmwst'), kV = k('mwst'), kS = k('status');
+    const str = v => v == null ? '' : String(v).trim();
+    return rows.map(r => ({
+      sku: str(r[kE]) || str(r[kH]) || str(r[kEan]), ean: str(r[kEan]), name: str(r[kN]).replace(/\s+/g, ' '),
+      preis: typeof r[kP] === 'number' ? r[kP] : num(r[kP]), basis: 'brutto', einheit: '', ust: kV ? parseVat(r[kV]) : null, status: kS ? str(r[kS]) : ''
+    })).filter(a => a.name && !isNaN(a.preis) && a.preis > 0);
+  }
+  const cEan = findCol(keys, ['ean', 'eanisbn', 'gtin', 'ggtin']), cStat = findCol(keys, ['status', 'verfuegbarkeit', 'gavailability']);
+  const cSku = findCol(keys, COLS.sku), cName = findCol(keys.filter(k => k !== cSku), COLS.name), cPrice = findCol(keys, COLS.price), cUnit = findCol(keys, COLS.unit), cVat = findCol(keys, COLS.vat);
+  if (!cName && !cSku) throw new Error('Keine Spalte für Artikelnummer oder Bezeichnung gefunden. Gefundene Spalten: ' + keys.slice(0, 12).join(', '));
+  const ph = hnorm(cPrice || ''); const basis = ph.includes('netto') ? 'netto' : ph.includes('brutto') ? 'brutto' : null;
+  return rows.map(r => ({
+    sku: String(r[cSku] ?? '').trim(), name: String(r[cName] ?? r[cSku] ?? '').trim(),
+    preis: cPrice ? num(r[cPrice]) : NaN, basis, einheit: cUnit ? String(r[cUnit] ?? '').trim() : '', ust: cVat ? parseVat(r[cVat]) : null,
+    ean: cEan && cEan !== cSku ? String(r[cEan] ?? '').trim() : '', status: cStat ? String(r[cStat] ?? '').trim() : ''
+  })).filter(a => a.sku || a.name);
+}
+function mapShopifyCsv(rows, keys) {
+  const k = n => keys.find(x => hnorm(x) === n);
+  const kH = k('handle'), kT = k('title'), kS = k('variantsku'), kP = k('variantprice'), kO = [k('option1value'), k('option2value'), k('option3value')].filter(Boolean);
+  const titles = {}; const out = [];
+  for (const r of rows) {
+    const h = r[kH]; if (r[kT]) titles[h] = String(r[kT]).trim();
+    if (r[kP] === '' || r[kP] == null) continue;
+    const opts = kO.map(o => String(r[o] || '').trim()).filter(o => o && o !== 'Default Title');
+    out.push({ sku: String(r[kS] || h || '').trim(), name: (titles[h] || h) + (opts.length ? ' – ' + opts.join(' / ') : ''), preis: num(r[kP]), basis: null, einheit: '', ust: null });
+  }
+  return out;
+}
+function parseXml(text) {
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  if (doc.querySelector('parsererror')) throw new Error('XML-Datei ist fehlerhaft.');
+  let items = [];
+  for (const tag of ['item', 'entry', 'product', 'artikel', 'Artikel', 'row', 'Row']) { items = [...doc.getElementsByTagName(tag)]; if (items.length) break; }
+  return mapRows(items.map(it => { const o = {}; for (const ch of it.children) if (!(ch.nodeName in o)) o[ch.nodeName] = ch.textContent.trim(); for (const a of it.attributes) o[a.name] = a.value; return o; }));
+}
+function parseJson(text) {
+  const j = JSON.parse(text);
+  if (j && Array.isArray(j.products)) {
+    return j.products.flatMap(p => (p.variants || [{}]).map(v => ({
+      sku: String(v.sku || p.handle || p.id || ''), name: p.title + (v.title && v.title !== 'Default Title' ? ' – ' + v.title : ''),
+      preis: num(v.price), basis: null, einheit: '', ust: null })));
+  }
+  const arr = Array.isArray(j) ? j : (j.items || j.artikel || j.data || j.rows || []);
+  return mapRows(arr);
+}
+function parseCsv(text) {
+  const res = Papa.parse(text.replace(/^﻿/, ''), { header: true, skipEmptyLines: 'greedy', delimitersToGuess: [';', ',', '\t', '|'] });
+  return mapRows(res.data);
+}
+function decodeText(buf) {
+  let t = new TextDecoder('utf-8').decode(buf);
+  if (t.includes('�')) t = new TextDecoder('windows-1252').decode(buf);
+  return t;
+}
+function loadScript(urls) {
+  urls = [].concat(urls);
+  return urls.reduce((p, u) => p.catch(() => new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = u; s.onload = res; s.onerror = () => { s.remove(); rej(new Error('Laden fehlgeschlagen: ' + u)); }; document.head.append(s);
+  })), Promise.reject());
+}
+async function parseFeedBuffer(buf, name = '') {
+  const b = new Uint8Array(buf.slice(0, 4));
+  const isZip = b[0] === 0x50 && b[1] === 0x4b, isOle = b[0] === 0xd0 && b[1] === 0xcf;
+  if (isZip || isOle) {
+    if (!window.XLSX) await loadScript(XLSX_URLS);
+    const wb = XLSX.read(buf, { type: 'array' });
+    let best = [], lastErr = null;
+    for (const sn of wb.SheetNames) {
+      const grid = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '', raw: true, blankrows: false });
+      // Kopfzeile = erste Zeile (der ersten 25), in der Artikelnummer/Bezeichnung und Preis erkennbar sind
+      for (let h = 0; h < Math.min(25, grid.length); h++) {
+        const head = grid[h].map(v => String(v).trim());
+        if (!findCol(head, COLS.price) || !(findCol(head, COLS.name) || findCol(head, COLS.sku))) continue;
+        const rows = grid.slice(h + 1).map(r => Object.fromEntries(head.map((k, i) => [k || ('Spalte' + i), r[i]])));
+        try { const list = mapRows(rows).filter(a => a.preis != null && !isNaN(a.preis)); if (list.length > best.length) best = list; } catch (e) { lastErr = e; }
+        break;
+      }
+      if (best.length) break; // das erste Blatt mit Artikeln zählt
+    }
+    if (!best.length) throw lastErr || new Error('In der Excel-Datei wurde keine Artikelliste mit Preisen gefunden.');
+    return best;
+  }
+  const text = decodeText(buf).trim();
+  if (text.startsWith('<')) return parseXml(text);
+  if (text.startsWith('{') || text.startsWith('[')) return parseJson(text);
+  return parseCsv(text);
+}
+function indexArtikel(list) {
+  ARTIKEL = list.map(a => ({ ...a, _s: norm(a.sku), _n: norm(a.name), _k: norm(a.sku + ' ' + (a.ean || '') + ' ' + a.name) }));
+}
+function setFeed(list, quelle, stand = Date.now()) {
+  const clean = list.map(({ sku, ean, name, preis, basis, einheit, ust, status }) => ({ sku, ean: ean || '', name, preis: preis == null || isNaN(preis) ? null : preis, basis, einheit, ust, status: status || '' }));
+  indexArtikel(clean);
+  const meta = { quelle, ts: stand, anzahl: clean.length };
+  store.set('feed', { meta, items: clean });
+  feedStatus(meta);
+}
+function feedStatus(meta, err) {
+  const dot = $('#feed-dot'), st = $('#feed-status');
+  if (err && !ARTIKEL.length) { dot.classList.add('warn'); st.textContent = 'Kein Artikel-Feed geladen – ' + err; }
+  else if (meta) {
+    dot.classList.toggle('warn', !!err);
+    const d = new Date(meta.ts);
+    st.textContent = `${meta.anzahl} Artikel · Stand ${d.toLocaleDateString('de-AT')} ${d.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' })}` + (err ? ' (offline, gespeicherte Liste)' : '');
+  }
+  const det = $('#feed-detail'); if (det && meta) det.textContent = `Zuletzt geladen aus: ${meta.quelle}` + (err ? ` · Letzter Versuch: ${err}` : '');
+}
+async function loadFeed(manual = false) {
+  const url = (S.feedUrl || 'artikel.csv').trim();
+  try {
+    let res = await fetch(url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Feed nicht gefunden (HTTP ${res.status})`);
+    const stand = Date.parse(res.headers.get('Last-Modified') || '') || Date.now();
+    const cached = store.get('feed', null);
+    // Eine neuere Liste (z. B. am Gerät importierte Produktliste) nicht automatisch überschreiben
+    if (!manual && cached?.meta && cached.meta.ts >= stand && cached.items?.length) { feedStatus(cached.meta); return; }
+    const list = await parseFeedBuffer(await res.arrayBuffer(), url);
+    if (!list.length) throw new Error('Feed ist leer.');
+    setFeed(list, url, stand);
+    if (manual) toast(`${list.length} Artikel geladen.`, 'ok');
+  } catch (e) {
+    const msg = e instanceof TypeError ? 'Abruf blockiert oder offline' : e.message;
+    feedStatus(store.get('feed', {}).meta, msg);
+    if (manual) toast('Feed: ' + msg + (e instanceof TypeError && /^https?:/.test(url) ? ' – der Anbieter erlaubt den direkten Abruf nicht. Lass GitHub den Feed holen (Anleitung).' : ''), 'err', null, 7000);
+  }
+}
+
+/* ---------- Suche ---------- */
+let hits = [], sel = 0;
+function search(q) {
+  const t = norm(q).split(/\s+/).filter(Boolean); if (!t.length) return [];
+  const q0 = norm(q.trim());
+  return ARTIKEL.filter(a => t.every(x => a._k.includes(x))).map(a => {
+    const s = a._s === q0 ? 0 : a._s.startsWith(q0) ? 1 : a._n.startsWith(q0) ? 2 : 3; return [s, a];
+  }).sort((x, y) => x[0] - y[0] || x[1].name.localeCompare(y[1].name, 'de')).slice(0, 40).map(x => x[1]);
+}
+function highlight(text, q) {
+  let html = esc(text); const t = q.trim().split(/\s+/).filter(x => x.length > 0);
+  for (const w of t) { const re = new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'); html = html.replace(re, '<mark>$1</mark>'); }
+  return html;
+}
+function shownPrice(a) {
+  if (a.preis == null) return '';
+  return eur(convertPrice(a.preis, a.basis || S.feedPreis, a.ust ?? num(S.standardUst), inv.modus));
+}
+function renderResults() {
+  const box = $('#results'), q = $('#q').value;
+  if (!q.trim()) { box.hidden = true; return; }
+  hits = search(q); sel = 0; box.innerHTML = '';
+  if (!hits.length) {
+    box.innerHTML = `<div class="res-empty">${ARTIKEL.length ? 'Kein Artikel gefunden.' : 'Noch kein Artikel-Feed geladen.'} Mit <b>Enter</b> als freie Position übernehmen.</div>`;
+  }
+  hits.forEach((a, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'res' + (i === 0 ? ' sel' : '');
+    const aus = /ausverkauft|out.of.stock/i.test(a.status || '');
+    b.innerHTML = `<span class="sku">${highlight(a.sku, q)}</span><span class="nm">${highlight(a.name, q)}${aus ? ' <span class="badge">ausverkauft</span>' : ''}</span><span class="pr">${shownPrice(a)}</span>`;
+    b.addEventListener('mousedown', e => e.preventDefault());
+    b.addEventListener('click', () => pick(a));
+    box.append(b);
+  });
+  box.hidden = false;
+}
+function moveSel(d) {
+  if (!hits.length) return; sel = (sel + d + hits.length) % hits.length;
+  $$('#results .res').forEach((el, i) => el.classList.toggle('sel', i === sel));
+  $$('#results .res')[sel]?.scrollIntoView({ block: 'nearest' });
+}
+function convertPrice(p, from, rate, to) {
+  if (S.kleinunternehmer || from === to || p == null) return p;
+  return from === 'brutto' ? r2(p / (1 + rate / 100)) : r2(p * (1 + rate / 100));
+}
+function pick(a) {
+  const exist = a.sku && inv.lines.find(l => l.sku === a.sku && l.name === a.name);
+  if (exist) { exist.menge = fmtQty((num(exist.menge) || 0) + 1); }
+  else {
+    const rate = a.ust ?? num(S.standardUst);
+    inv.lines.push({ id: uid(), sku: a.sku, name: a.name, menge: '1', einheit: a.einheit || 'Stk', preis: a.preis == null ? '' : fmt(convertPrice(a.preis, a.basis || S.feedPreis, rate, inv.modus)), ust: String(rate) });
+  }
+  $('#q').value = ''; $('#results').hidden = true;
+  changed(true);
+  const id = (exist || inv.lines[inv.lines.length - 1]).id;
+  const qty = $(`.line[data-id="${id}"] [data-f=menge]`);
+  if (qty) { qty.scrollIntoView({ block: 'center' }); qty.focus({ preventScroll: true }); qty.select(); }
+  toast((exist ? 'Menge erhöht: ' : 'Hinzugefügt: ') + a.name + ' – Menge eintippen, Enter zurück zur Suche', '', null, 2400);
+}
+function addFree(text = '') {
+  inv.lines.push({ id: uid(), sku: '', name: text, menge: '1', einheit: 'Stk', preis: '', rabatt: '', ust: String(S.standardUst) });
+  changed(true);
+  const last = $$('#lines .line').pop(); (text ? last?.querySelector('[data-f=preis]') : last?.querySelector('.l-name'))?.focus();
+}
+
+/* ---------- Positionen ---------- */
+function autoGrow(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+function renderLines() {
+  const box = $('#lines'); box.innerHTML = '';
+  if (!inv.lines.length) { box.innerHTML = '<p class="empty">Noch keine Positionen. Oben Artikelnummer oder Namen eintippen – oder eine freie Position anlegen.</p>'; }
+  inv.lines.forEach((l, i) => {
+    const el = document.createElement('div'); el.className = 'line'; el.dataset.id = l.id;
+    el.innerHTML = `<div class="l-top"><span class="l-pos">${i + 1}</span>
+      <input class="l-sku" data-f="sku" placeholder="Art.-Nr." aria-label="Artikelnummer">
+      <span style="flex:1"></span>
+      <button class="icon-btn" data-act="up" type="button" aria-label="nach oben" title="nach oben">↑</button>
+      <button class="icon-btn" data-act="del" type="button" aria-label="Position entfernen" title="entfernen">×</button></div>
+      <textarea class="l-name" data-f="name" rows="1" placeholder="Bezeichnung" aria-label="Bezeichnung"></textarea>
+      <div class="l-row">
+        <div class="stepper"><button type="button" data-step="-1" aria-label="weniger">−</button><input data-f="menge" inputmode="decimal" aria-label="Menge"><button type="button" data-step="1" aria-label="mehr">+</button></div>
+        <input class="l-unit" data-f="einheit" aria-label="Einheit" placeholder="Stk">
+        <label class="l-price">€<input data-f="preis" inputmode="decimal" aria-label="Einzelpreis" placeholder="0,00"></label>
+        <label class="l-rab" title="Rabatt auf diese Position"><input data-f="rabatt" inputmode="decimal" aria-label="Rabatt in Prozent" placeholder="0">% Rab.</label>
+        <select class="l-ust" data-f="ust" aria-label="USt-Satz" ${S.kleinunternehmer ? 'hidden' : ''}><option value="20">20 %</option><option value="13">13 %</option><option value="10">10 %</option><option value="0">0 %</option></select>
+        <output class="l-total"></output>
+      </div>`;
+    for (const f of ['sku', 'name', 'menge', 'einheit', 'preis', 'rabatt']) el.querySelector(`[data-f=${f}]`).value = l[f] ?? '';
+    el.querySelector('.l-rab').classList.toggle('on', (num(l.rabatt) || 0) > 0);
+    const us = el.querySelector('[data-f=ust]');
+    if (![...us.options].some(o => o.value === String(l.ust))) us.append(new Option(fmtQty(num(l.ust)) + ' %', l.ust));
+    us.value = String(l.ust);
+    box.append(el);
+    autoGrow(el.querySelector('.l-name'));
+  });
+  updateTotals();
+}
+$('#lines').addEventListener('input', e => {
+  const el = e.target.closest('.line'); if (!el) return; const l = inv.lines.find(x => x.id === el.dataset.id); const f = e.target.dataset.f;
+  if (!l || !f) return; l[f] = e.target.value;
+  if (f === 'name') autoGrow(e.target);
+  if (f === 'rabatt') el.querySelector('.l-rab').classList.toggle('on', (num(l.rabatt) || 0) > 0);
+  changed(false);
+});
+$('#lines').addEventListener('focusin', e => { if (['menge', 'preis', 'rabatt'].includes(e.target.dataset.f)) { e.target.select(); e.target.dataset.jf = '1'; } });
+$('#lines').addEventListener('mouseup', e => { if (e.target.dataset.jf) { e.preventDefault(); delete e.target.dataset.jf; } });
+$('#lines').addEventListener('keydown', e => { delete e.target.dataset.jf; }, true);
+$('#lines').addEventListener('change', e => {
+  const t = e.target; if (t.dataset.f === 'preis' || t.dataset.f === 'menge') {
+    const v = num(t.value); if (!isNaN(v)) { t.value = t.dataset.f === 'preis' ? fmt(v) : fmtQty(v); const l = inv.lines.find(x => x.id === t.closest('.line').dataset.id); l[t.dataset.f] = t.value; changed(false); }
+  }
+});
+$('#lines').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); e.target.dispatchEvent(new Event('change', { bubbles: true })); $('#q').focus(); } });
+$('#lines').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; const el = b.closest('.line'); const i = inv.lines.findIndex(x => x.id === el.dataset.id); if (i < 0) return;
+  if (b.dataset.step) { const l = inv.lines[i]; l.menge = fmtQty(Math.max(0, (num(l.menge) || 0) + +b.dataset.step)); el.querySelector('[data-f=menge]').value = l.menge; changed(false); }
+  if (b.dataset.act === 'del') { const [gone] = inv.lines.splice(i, 1); changed(true); toast('Position entfernt', '', { label: 'Rückgängig', fn: () => { inv.lines.splice(i, 0, gone); changed(true); } }); }
+  if (b.dataset.act === 'up' && i > 0) { [inv.lines[i - 1], inv.lines[i]] = [inv.lines[i], inv.lines[i - 1]]; changed(true); }
+});
+
+function updateTotals() {
+  const c = compute();
+  $$('#lines .line').forEach((el, i) => { const r = c.rows[i]; if (r) el.querySelector('.l-total').textContent = eur(r.total); });
+  const T = $('#totals'); let h = '';
+  if (c.rabatt > 0) h += `<span class="lbl">Zwischensumme</span><span class="v">${eur(c.zwischen)}</span><span class="lbl">${fmtQty(c.rabatt)} % Rabatt</span><span class="v">- ${eur(c.rabBetrag)}</span>`;
+  if (!S.kleinunternehmer) {
+    h += `<span class="lbl">Summe netto</span><span class="v">${eur(c.net)}</span>`;
+    for (const g of c.groups) h += `<span class="lbl">USt ${fmtQty(g.rate)} %</span><span class="v">${eur(g.vat)}</span>`;
+  }
+  h += `<span class="grand">Gesamtbetrag</span><span class="v grand">${eur(c.gross)}</span>`;
+  if (c.skonto > 0) h += `<span class="lbl">${fmtQty(c.skonto)} % Skonto bis ${dfmt(addDays(inv.datum, inv.skonto.tage))}</span><span class="v">- ${eur(c.skBetrag)}</span><span class="lbl">Zahlbetrag mit Skonto</span><span class="v">${eur(c.zahlSkonto)}</span>`;
+  T.innerHTML = h;
+  $('#bar-sum').textContent = eur(c.gross);
+  const pay = $('#pay');
+  if (qrPossible() && c.gross > 0) {
+    pay.innerHTML = `<div class="qr" id="qr-small" role="button" tabindex="0" aria-label="QR-Code groß anzeigen">${qrSvg(epcText(c.gross, inv.nr))}</div>
+      <div class="txt"><b>Zahlungs-QR mit ${eur(c.gross)}</b><br>IBAN ${esc(S.bank.iban)} · ${esc(S.bank.inhaber)}<br>Verwendungszweck „Rechnung ${esc(inv.nr)}“. Antippen zum Vorzeigen.</div>`;
+    pay.hidden = false;
+  } else pay.hidden = true;
+}
+
+/* ---------- Kopf & Kunde ---------- */
+const KF = ['name', 'zusatz', 'strasse', 'ort', 'land', 'uid'];
+function renderHead() {
+  $('#inv-nr').value = inv.nr; $('#inv-datum').value = inv.datum; $('#inv-leistung').value = inv.leistung || inv.datum;
+  for (const f of KF) $('#k-' + f).value = inv.kunde[f] || '';
+  $('#rab-proz').value = inv.rabatt || ''; $('#sk-proz').value = inv.skonto?.proz || ''; $('#sk-tage').value = inv.skonto?.tage ?? S.skontoTage; $('#inv-notiz').value = inv.notiz || '';
+  $('#mode-brutto').setAttribute('aria-pressed', inv.modus === 'brutto'); $('#mode-netto').setAttribute('aria-pressed', inv.modus === 'netto');
+  $('.mode').hidden = !!S.kleinunternehmer;
+}
+function renderAll() { renderHead(); renderLines(); renderKunden(); }
+function changed(structure) { inv.saved = false; if (structure) renderLines(); else updateTotals(); saveDraft(); }
+
+$('#inv-nr').addEventListener('input', e => { inv.nr = e.target.value.trim(); changed(false); });
+$('#inv-datum').addEventListener('change', e => { const old = inv.datum; inv.datum = e.target.value || today(); if (!inv.leistung || inv.leistung === old) { inv.leistung = inv.datum; $('#inv-leistung').value = inv.datum; } changed(false); });
+$('#inv-leistung').addEventListener('change', e => { inv.leistung = e.target.value; changed(false); });
+$('#sk-proz').addEventListener('input', e => { inv.skonto.proz = e.target.value; changed(false); });
+$('#rab-proz').addEventListener('input', e => { inv.rabatt = e.target.value; changed(false); });
+$('#sk-tage').addEventListener('input', e => { inv.skonto.tage = e.target.value; changed(false); });
+$('#inv-notiz').addEventListener('input', e => { inv.notiz = e.target.value; changed(false); });
+for (const f of KF) $('#k-' + f).addEventListener('input', e => {
+  inv.kunde[f] = e.target.value;
+  if (f === 'name') { const k = store.get('kunden', {})[norm(e.target.value.trim())]; if (k && e.inputType !== 'insertText') fillKunde(k); }
+  saveDraft();
+});
+$('#k-name').addEventListener('change', e => { const k = store.get('kunden', {})[norm(e.target.value.trim())]; if (k) fillKunde(k); });
+function fillKunde(k) { inv.kunde = { ...k }; delete inv.kunde.ts; for (const f of KF) $('#k-' + f).value = inv.kunde[f] || ''; saveDraft(); }
+$('#btn-kunde-clear').onclick = () => { inv.kunde = {}; for (const f of KF) $('#k-' + f).value = ''; saveDraft(); $('#k-name').focus(); };
+function renderKunden() {
+  const dl = $('#kundenliste'); dl.innerHTML = '';
+  Object.values(store.get('kunden', {})).sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach(k => { const o = document.createElement('option'); o.value = k.name; o.label = [k.strasse, k.ort].filter(Boolean).join(', '); dl.append(o); });
+}
+function setMode(m) {
+  if (m === inv.modus) return;
+  for (const l of inv.lines) { const p = num(l.preis); if (!isNaN(p)) l.preis = fmt(convertPrice(p, inv.modus, num(l.ust) || 0, m)); }
+  inv.modus = m; renderHead(); changed(true);
+}
+$('#mode-brutto').onclick = () => setMode('brutto');
+$('#mode-netto').onclick = () => setMode('netto');
+
+$('#q').addEventListener('input', renderResults);
+$('#q').addEventListener('focus', renderResults);
+$('#q').addEventListener('blur', () => setTimeout(() => { $('#results').hidden = true; }, 150));
+$('#q').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); moveSel(-1); }
+  else if (e.key === 'Escape') { $('#results').hidden = true; }
+  else if (e.key === 'Enter') { e.preventDefault(); const v = e.target.value.trim(); if (!v) return; if (hits.length) pick(hits[sel] || hits[0]); else { e.target.value = ''; $('#results').hidden = true; addFree(v); } }
+});
+$('#btn-free').onclick = () => addFree('');
+
+$('#pay').addEventListener('click', e => { if (e.target.closest('#qr-small')) showBigQR(); });
+$('#pay').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('#qr-small')) showBigQR(); });
+function showBigQR() {
+  const c = compute(); const d = document.createElement('div'); d.className = 'qr-big';
+  d.innerHTML = `<div class="box">${qrSvg(epcText(c.gross, inv.nr))}</div><div><b style="font-size:22px">${eur(c.gross)}</b><br>Rechnung ${esc(inv.nr)} · Mit der Banking-App scannen</div><button class="btn" type="button">Schließen</button>`;
+  d.onclick = () => d.remove(); document.body.append(d);
+}
+
+$('#btn-nextnr').onclick = async () => {
+  await syncCloud(false);
+  inv.nr = nextNr(); $('#inv-nr').value = inv.nr; changed(false);
+};
+$('#btn-new').onclick = () => {
+  const go = () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); syncCloud(false).then(r => { if (r && !inv.lines.length) { inv.nr = nextNr(); $('#inv-nr').value = inv.nr; saveDraft(); } }); window.scrollTo({ top: 0 }); };
+  if (!inv.saved && inv.lines.length) toast('Aktuelle Rechnung ist nicht gespeichert.', '', { label: 'Trotzdem neu', fn: go }); else go();
+};
+
+/* ---------- PDF ---------- */
+function buildPdf(x = inv) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+  const c = compute(x), ku = !!S.kleinunternehmer;
+  const L = 20, R = 190, ink = [18, 26, 44], grey = [96, 104, 120], rule = [205, 210, 220], tint = [232, 237, 246], navy = [11, 42, 91], orange = [232, 111, 0];
+  const F = S.firma;
+  doc.setProperties({ title: 'Rechnung ' + x.nr, author: F.name, subject: 'Rechnung ' + x.nr, creator: 'Preisflieger Rechnung' });
+  doc.setTextColor(...ink); doc.setLineWidth(0.2);
+
+  // Logo
+  if (LOGO.logo) {
+    try { const p = LOGO.logo; let w = 46, h = w * p.h / p.w; if (h > 30) { h = 30; w = h * p.w / p.h; } doc.addImage(p.data, 'PNG', L, 11, w, h, 'logo1'); } catch (e) { }
+  }
+  // Absender rechts oben
+  const sx = 130; let y = 18;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...navy); doc.text(F.name || '', sx, y); y += 5; doc.setTextColor(...ink);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  for (const t of [F.zeile2, F.strasse, F.ort]) if (t) { doc.text(t, sx, y); y += 4.2; }
+  y += 1.2;
+  for (const [k, v] of [['Tel.', F.tel], ['Mail', F.mail], ['Web', F.web], ['UID', F.uid]]) if (v) { doc.setTextColor(...grey); doc.text(k, sx, y); doc.setTextColor(...ink); doc.text(v, sx + 11, y); y += 4.2; }
+
+  // Empfänger (Fensterkuvert-Position)
+  doc.setFontSize(7); doc.setTextColor(...grey);
+  doc.text([F.name, F.strasse, F.ort].filter(Boolean).join(' · '), L, 47);
+  doc.setDrawColor(...rule); doc.line(L, 48.3, L + 85, 48.3);
+  let ky = 54.5; doc.setFontSize(10.5); doc.setTextColor(...ink);
+  const k = x.kunde || {};
+  for (const t of [k.name, k.zusatz, k.strasse, k.ort, k.land]) if (t) { doc.text(String(t), L, ky); ky += 5; }
+  if (k.uid) { doc.setFontSize(9); doc.setTextColor(...grey); doc.text('UID: ' + k.uid, L, ky + 0.5); ky += 5; doc.setTextColor(...ink); }
+
+  // Titel + Rechnungsdaten
+  const ty = Math.max(94, ky + 10);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(21); doc.setTextColor(...navy); doc.text('Rechnung', L, ty);
+  doc.setDrawColor(...orange); doc.setLineWidth(0.9); doc.line(L, ty + 2.6, L + 24, ty + 2.6); doc.setLineWidth(0.2); doc.setTextColor(...ink);
+  let my = ty - 12; doc.setFontSize(9.5);
+  for (const [a, b] of [['Rechnungsnummer', x.nr], ['Rechnungsdatum', dfmt(x.datum)], ['Leistungsdatum', dfmt(x.leistung || x.datum)]]) {
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...grey); doc.text(a, sx, my);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(...ink); doc.text(b, R, my, { align: 'right' }); my += 5.2;
+  }
+
+  // Tabelle
+  const rb = c.lineRab;
+  const C = ku ? (rb ? { pos: L + 1, sku: L + 9, desc: L + 34, dw: 62, qty: 130, unit: 132, price: 159, rab: 171, ust: null, tot: R - 1 }
+                     : { pos: L + 1, sku: L + 9, desc: L + 34, dw: 76, qty: 141, unit: 143, price: 170, rab: null, ust: null, tot: R - 1 })
+    : (rb ? { pos: L + 1, sku: L + 9, desc: L + 34, dw: 50, qty: 119, unit: 121, price: 148, rab: 160, ust: 171, tot: R - 1 }
+          : { pos: L + 1, sku: L + 9, desc: L + 34, dw: 62, qty: 130, unit: 132, price: 159, rab: null, ust: 171, tot: R - 1 });
+  const head = yh => {
+    doc.setFillColor(...tint); doc.rect(L, yh, R - L, 7, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...navy);
+    const b = yh + 4.7;
+    doc.text('Pos', C.pos, b); doc.text('Art.-Nr.', C.sku, b); doc.text('Bezeichnung', C.desc, b);
+    doc.text('Menge', C.qty, b, { align: 'right' }); doc.text('Einh.', C.unit, b);
+    doc.text('Einzelpreis', C.price, b, { align: 'right' }); if (C.rab) doc.text('Rab.', C.rab, b, { align: 'right' }); if (C.ust) doc.text('USt', C.ust, b, { align: 'right' });
+    doc.text('Gesamt', C.tot, b, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    return yh + 7;
+  };
+  let yt = head(ty + 7);
+  c.rows.forEach((r, i) => {
+    const dl = doc.splitTextToSize(r.name || '', C.dw), sl = doc.splitTextToSize(r.sku || '', C.desc - C.sku - 2);
+    const h = Math.max(dl.length, sl.length, 1) * 4 + 3.2;
+    if (yt + h > 265) { doc.addPage(); yt = head(20); }
+    const b = yt + 4.6;
+    doc.setTextColor(...grey); doc.text(String(i + 1), C.pos, b); doc.text(sl, C.sku, b);
+    doc.setTextColor(...ink); doc.text(dl, C.desc, b);
+    doc.text(fmtQty(r.q), C.qty, b, { align: 'right' }); doc.text(r.einheit || '', C.unit, b);
+    doc.text(fmt(r.p), C.price, b, { align: 'right' }); if (C.rab && r.rab) doc.text(fmtQty(r.rab) + ' %', C.rab, b, { align: 'right' }); if (C.ust) doc.text(fmtQty(r.rate) + ' %', C.ust, b, { align: 'right' });
+    doc.text(fmt(r.total), C.tot, b, { align: 'right' });
+    yt += h; doc.setDrawColor(...rule); doc.line(L, yt, R, yt);
+  });
+
+  // Summen
+  let y2 = yt + 7;
+  if (y2 + 20 + c.groups.length * 5.2 + (c.skonto ? 11 : 0) + (c.rabatt ? 11 : 0) > 270) { doc.addPage(); y2 = 25; }
+  const sumTop = y2;
+  const lx = 116;
+  const tl = (a, b, bold = false, size = 9.5) => {
+    doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); doc.setTextColor(...(bold ? ink : grey));
+    doc.text(a, lx, y2); doc.setTextColor(...ink); doc.text(b, R - 1, y2, { align: 'right' }); y2 += size > 10 ? 6.5 : 5.2;
+  };
+  if (c.rabatt > 0) { tl(x.modus === 'brutto' && !ku ? 'Zwischensumme brutto' : 'Zwischensumme', eur(c.zwischen)); tl(`abzüglich ${fmtQty(c.rabatt)} % Rabatt`, '- ' + eur(c.rabBetrag)); }
+  if (!ku) { tl('Summe netto', eur(c.net)); for (const g of c.groups) tl(`USt ${fmtQty(g.rate)} % von ${eur(g.net)}`, eur(g.vat)); }
+  doc.setDrawColor(...orange); doc.setLineWidth(0.6); doc.line(lx, y2 - 3.2, R, y2 - 3.2); doc.setLineWidth(0.2); y2 += 2.4;
+  tl('Gesamtbetrag', eur(c.gross), true, 12);
+  if (c.skonto > 0) { tl(`${fmtQty(c.skonto)} % Skonto bis ${dfmt(addDays(x.datum, x.skonto.tage))}`, '- ' + eur(c.skBetrag)); tl('Zahlbetrag mit Skonto', eur(c.zahlSkonto), true); }
+  // Hinweis links neben den Summen
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...grey);
+  const note = ku ? (S.kuText || '') : (x.modus === 'brutto' ? 'Alle Preise in Euro inkl. USt.' : 'Alle Preise in Euro zzgl. USt.');
+  doc.text(doc.splitTextToSize(note, 94), L, sumTop);
+
+  // Bemerkung
+  let y3 = y2 + 3;
+  if (x.notiz && x.notiz.trim()) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+    const nl = doc.splitTextToSize(x.notiz.trim(), R - L);
+    if (y3 + nl.length * 4.4 > 272) { doc.addPage(); y3 = 25; }
+    doc.setFontSize(9.5); doc.setTextColor(...ink); doc.text(nl, L, y3); y3 += nl.length * 4.4 + 3;
+  }
+
+  // Bankverbindung + QR
+  const B = S.bank; const withQR = qrPossible() && c.gross > 0;
+  const bh = withQR ? 42 : 34;
+  let by = y3 + 2;
+  if (by + bh > 276) { doc.addPage(); by = 25; }
+  doc.setDrawColor(...rule); doc.roundedRect(L, by, R - L, bh, 1.8, 1.8, 'S');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...navy); doc.text('Bankverbindung', L + 5, by + 7.5);
+  let yb = by + 13.5; doc.setFontSize(9);
+  for (const [a, b, bold] of [['Bank', B.name], ['Kontoinhaber', B.inhaber], ['IBAN', B.iban, true], ['BIC', B.bic], ['Verwendung', 'Rechnung ' + x.nr, true]]) {
+    if (!b) continue;
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...grey); doc.text(a, L + 5, yb);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...ink); doc.text(String(b), L + 30, yb); yb += 4.7;
+  }
+  if (withQR) {
+    const size = 32, qx = R - 5 - size, qy = by + 3;
+    const q = makeQR(epcText(c.gross, x.nr)), n = q.getModuleCount(), cell = size / (n + 4);
+    doc.setFillColor(0, 0, 0);
+    for (let r = 0; r < n; r++) { let run = -1; for (let col = 0; col <= n; col++) { const dark = col < n && q.isDark(r, col); if (dark && run < 0) run = col; if (!dark && run >= 0) { doc.rect(qx + (run + 2) * cell, qy + (r + 2) * cell, (col - run) * cell + 0.02, cell + 0.02, 'F'); run = -1; } } }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...grey);
+    doc.text('Scannen & zahlen', qx + size / 2, qy + size + 3.4, { align: 'center' });
+    doc.text(['Mit der Banking-App scannen –', 'Betrag und Zahlungsreferenz', 'sind schon ausgefüllt.'], qx - 4, by + 30, { align: 'right' });
+  }
+
+  // Bedingungen
+  let y4 = by + bh + 7;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...grey);
+  const l2 = LOGO.logo2; let l2w = 0, l2h = 0;
+  if (l2) { l2h = 21; l2w = l2h * l2.w / l2.h; }
+  const bed = (S.bedingungen || '').split('\n').flatMap(p => doc.splitTextToSize(p, R - L - (l2 ? l2w + 6 : 0)));
+  if (y4 + Math.max(bed.length * 3.7, l2h) > 280) { doc.addPage(); y4 = 25; }
+  if (l2) { try { doc.addImage(l2.data, 'PNG', R - l2w, y4 - 3, l2w, l2h, 'logo2'); } catch (e) { } }
+  for (const line of bed) { if (y4 > 278) { doc.addPage(); y4 = 25; } doc.text(line, L, y4); y4 += 3.7; }
+
+  // Fußzeile
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i); doc.setDrawColor(...rule); doc.line(L, 283, R, 283);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...grey);
+    doc.text([F.name, F.uid ? 'UID ' + F.uid : '', B.iban ? 'IBAN ' + B.iban : ''].filter(Boolean).join('  ·  '), L, 287.5);
+    doc.text(`Seite ${i} von ${pages}`, R, 287.5, { align: 'right' });
+  }
+  return doc;
+}
+const pdfName = (x = inv) => safeName((S.dateiName || '{NR} {KUNDE}').replace(/\{NR\}/g, x.nr).replace(/\{KUNDE\}/g, x.kunde?.name || '')) + '.pdf';
+/* Logos für das PDF vorbereiten */
+const LOGO = {};
+function loadLogo(k) {
+  const src = S[k]; if (!src) { LOGO[k] = null; return Promise.resolve(); }
+  return new Promise(res => { const im = new Image(); im.onload = () => { const cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight; cv.getContext('2d').drawImage(im, 0, 0); try { LOGO[k] = { data: cv.toDataURL('image/png'), w: im.naturalWidth, h: im.naturalHeight }; } catch (e) { LOGO[k] = null; } res(); }; im.onerror = () => { LOGO[k] = null; res(); }; im.src = src; });
+}
+const loadLogos = () => Promise.all([loadLogo('logo'), loadLogo('logo2')]);
+function download(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+}
+function validate() {
+  const miss = [];
+  if (!inv.nr) miss.push('Rechnungsnummer');
+  if (!(inv.kunde.name || '').trim()) miss.push('Kundenname');
+  if (!inv.lines.length) miss.push('mindestens eine Position');
+  if (inv.lines.some(l => isNaN(num(l.preis)))) miss.push('Preis bei jeder Position');
+  if (inv.lines.some(l => !(num(l.menge) > 0))) miss.push('Menge bei jeder Position');
+  if (miss.length) { toast('Bitte ergänzen: ' + miss.join(', '), 'err'); return false; }
+  return true;
+}
+$('#btn-preview').onclick = () => {
+  const doc = buildPdf(); const w = window.open(doc.output('bloburl'), '_blank');
+  if (!w) download(doc.output('blob'), pdfName());
+};
+$('#btn-share').onclick = async () => {
+  const blob = buildPdf().output('blob'), name = pdfName();
+  const file = new File([blob], name, { type: 'application/pdf' });
+  if (navigator.canShare && navigator.canShare({ files: [file] }) && matchMedia('(pointer:coarse)').matches) {
+    try { await navigator.share({ files: [file], title: name }); } catch (e) { if (e.name !== 'AbortError') download(blob, name); }
+  } else download(blob, name);
+};
+$('#btn-save').onclick = async () => {
+  if (!validate()) return;
+  const hist = store.get('verlauf', []);
+  const dup = hist.find(h => h.nr === inv.nr && h.id !== inv.id);
+  if (dup && !$('#btn-save').dataset.force) {
+    $('#btn-save').dataset.force = '1'; setTimeout(() => delete $('#btn-save').dataset.force, 8000);
+    toast(`Nummer ${inv.nr} wurde schon für ${dup.kunde} vergeben. Nochmals tippen zum Überschreiben.`, 'err', null, 7000); return;
+  }
+  delete $('#btn-save').dataset.force;
+  const btn = $('#btn-save'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Speichere …';
+  try {
+    const blob = buildPdf().output('blob'), name = pdfName();
+    let where = '';
+    if (S.od.clientId) {
+      try { await odUpload(blob, name); where = `OneDrive › ${(S.od.ziel?.name || S.od.ordner || 'Rechnungen')} › ${jahresOrdner(inv.datum)}`; }
+      catch (e) {
+        if (e.needsLogin) { toast('OneDrive-Anmeldung nötig.', 'err', { label: 'Anmelden', fn: () => odLogin().then(() => btn.click()) }); return; }
+        toast('OneDrive: ' + e.message + ' – PDF wird stattdessen heruntergeladen.', 'err', null, 7000); download(blob, name); where = 'Download';
+      }
+    } else {
+      const file = new File([blob], name, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] }) && matchMedia('(pointer:coarse)').matches) {
+        try { await navigator.share({ files: [file], title: name }); where = 'geteilt'; } catch (e) { if (e.name === 'AbortError') return; download(blob, name); where = 'Download'; }
+      } else { download(blob, name); where = 'Download'; }
+    }
+    archive();
+    syncCloud(true);
+    toast(`Rechnung ${inv.nr} gespeichert (${where}).`, 'ok', { label: 'Neue Rechnung', fn: () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); window.scrollTo({ top: 0 }); } });
+  } finally { btn.disabled = false; btn.textContent = old; }
+};
+function archive() {
+  const c = compute();
+  inv.saved = true; store.set('draft', inv);
+  const hist = store.get('verlauf', []).filter(h => h.id !== inv.id && h.nr !== inv.nr);
+  hist.unshift({ id: inv.id, nr: inv.nr, datum: inv.datum, kunde: inv.kunde.name || '', brutto: c.gross, ts: Date.now(), inv: JSON.parse(JSON.stringify(inv)) });
+  store.set('verlauf', hist.slice(0, 500));
+  const kunden = store.get('kunden', {}); const key = norm((inv.kunde.name || '').trim());
+  if (key) { kunden[key] = { ...inv.kunde, ts: Date.now() }; store.set('kunden', kunden); }
+  bumpCounter(inv.nr); renderKunden();
+}
+
+/* ---------- Verlauf ---------- */
+function renderHist() {
+  const q = norm($('#hist-q').value); const box = $('#hist-list'); box.innerHTML = '';
+  const list = store.get('verlauf', []).filter(h => !q || norm(h.nr + ' ' + h.kunde).includes(q));
+  if (!list.length) { box.innerHTML = '<p class="empty">Noch keine gespeicherten Rechnungen.</p>'; return; }
+  for (const h of list.slice(0, 200)) {
+    const el = document.createElement('div'); el.className = 'h-item';
+    el.innerHTML = `<span class="nr"></span><span class="k"></span><span class="b"></span><span class="d"></span>
+      <div class="acts"><button class="btn small" data-a="open" type="button">Öffnen</button><button class="btn small" data-a="copy" type="button">Als Vorlage</button><button class="btn small" data-a="pdf" type="button">PDF</button><button class="btn ghost small" data-a="del" type="button">Löschen</button></div>`;
+    el.querySelector('.nr').textContent = h.nr; el.querySelector('.k').textContent = h.kunde; el.querySelector('.b').textContent = eur(h.brutto); el.querySelector('.d').textContent = dfmt(h.datum);
+    el.addEventListener('click', e => {
+      const a = e.target.dataset.a; if (!a) return;
+      if (a === 'open') { inv = JSON.parse(JSON.stringify(h.inv)); store.set('draft', inv); renderAll(); $('#dlg-hist').close(); }
+      if (a === 'copy') { const n = JSON.parse(JSON.stringify(h.inv)); Object.assign(n, { id: uid(), nr: nextNr(), datum: today(), leistung: today(), saved: false }); n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); $('#dlg-hist').close(); toast('Kopie mit neuer Nummer ' + inv.nr + ' angelegt.'); }
+      if (a === 'pdf') { download(buildPdf(h.inv).output('blob'), pdfName(h.inv)); }
+      if (a === 'del') {
+        if (e.target.dataset.sure) { store.set('verlauf', store.get('verlauf', []).filter(x => x.id !== h.id)); renderHist(); }
+        else { e.target.dataset.sure = '1'; e.target.textContent = 'Wirklich löschen?'; }
+      }
+    });
+    box.append(el);
+  }
+}
+$('#btn-hist').onclick = () => { renderHist(); $('#dlg-hist').showModal(); };
+$('#hist-q').addEventListener('input', renderHist);
+$$('dialog [data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+
+/* ---------- Einstellungen ---------- */
+const getPath = (o, p) => p.split('.').reduce((a, k) => a?.[k], o);
+const setPath = (o, p, v) => { const ks = p.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k] ??= {}, o)[last] = v; };
+function renderSettings() {
+  $$('[data-s]').forEach(el => { const v = getPath(S, el.dataset.s); if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; });
+  const z = getCounter(); $('#s-lastnr').value = fmtNr(z.jahr, z.n);
+  for (const [k, id] of [['logo', '#logo-prev'], ['logo2', '#logo2-prev']]) { const lp = $(id); if (S[k]) { lp.src = S[k]; lp.hidden = false; } else lp.hidden = true; }
+  $('#ver').textContent = VERSION;
+  feedStatus(store.get('feed', {}).meta);
+  odStatus();
+}
+$('#dlg-set').addEventListener('input', e => {
+  const el = e.target; if (!el.dataset.s) return;
+  setPath(S, el.dataset.s, el.type === 'checkbox' ? el.checked : el.value); saveSettings();
+  if (['kleinunternehmer', 'qr'].includes(el.dataset.s) || el.dataset.s.startsWith('bank')) { renderHead(); renderLines(); }
+});
+$('#dlg-set').addEventListener('change', e => { if (e.target.id === 's-feedurl') loadFeed(true); if (e.target.id === 's-od-link') { S.od.ziel = null; saveSettings(); } });
+$('#s-lastnr').addEventListener('change', e => {
+  const p = parseNr(e.target.value); if (!p) { toast('Nummer passt nicht zum Nummernformat.', 'err'); return; }
+  store.set('zaehler', { jahr: p.jahr ?? new Date().getFullYear(), n: p.n });
+  if (!inv.saved && !inv.lines.length) { inv.nr = nextNr(); renderHead(); saveDraft(); }
+  toast('Nächste Rechnung bekommt ' + nextNr());
+});
+$('#btn-set').onclick = () => { renderSettings(); $('#dlg-set').showModal(); };
+$('#btn-feed-load').onclick = () => loadFeed(true);
+$('#btn-feed-csv').onclick = () => {
+  if (!ARTIKEL.length) { toast('Es ist noch keine Artikelliste geladen.', 'err'); return; }
+  const q = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const lines = ['Artikelnummer;EAN;Bezeichnung;Preis ' + (ARTIKEL[0].basis || S.feedPreis) + ';USt;Status'];
+  for (const a of ARTIKEL) lines.push([a.sku, a.ean, a.name, a.preis == null ? '' : String(+a.preis.toFixed(6)).replace('.', ','), a.ust ?? '', a.status].map(q).join(';'));
+  download(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'artikel.csv');
+};
+$('#feed-file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const list = await parseFeedBuffer(await f.arrayBuffer(), f.name); if (!list.length) throw new Error('Keine Artikel erkannt.');
+    setFeed(list, 'Datei ' + f.name); toast(`${list.length} Artikel aus ${f.name} übernommen.`, 'ok');
+    odSaveArtikel().then(ok => { if (ok) toast('Artikelliste auch in OneDrive abgelegt – das andere Gerät übernimmt sie beim nächsten Öffnen.', 'ok'); });
+  }
+  catch (err) { toast('Import: ' + err.message, 'err', null, 8000); }
+  e.target.value = '';
+};
+$$('[data-logo]').forEach(inp => inp.onchange = e => {
+  const f = e.target.files[0]; if (!f) return; const key = e.target.dataset.logo;
+  const img = new Image(); img.onload = () => {
+    const sc = Math.min(1, 700 / img.width); const cv = document.createElement('canvas'); cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    S[key] = cv.toDataURL('image/png'); saveSettings(); loadLogos(); renderSettings(); URL.revokeObjectURL(img.src);
+  }; img.src = URL.createObjectURL(f); e.target.value = '';
+});
+$$('[data-logodel]').forEach(b => b.onclick = () => { S[b.dataset.logodel] = null; saveSettings(); loadLogos(); renderSettings(); });
+$('#btn-export').onclick = () => {
+  const data = { app: 'preisflieger-rechnung', version: VERSION, exportiert: new Date().toISOString(), settings: S, zaehler: getCounter(), kunden: store.get('kunden', {}), verlauf: store.get('verlauf', []) };
+  download(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }), `Rechnung-Sicherung-${today()}.json`);
+};
+$('#imp-file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text()); if (d.app !== 'preisflieger-rechnung') throw new Error('Das ist keine Sicherung dieser App.');
+    S = merge(DEFAULTS, d.settings); saveSettings(); mergeData(d); renderSettings(); renderAll(); toast('Sicherung eingespielt.', 'ok');
+  } catch (err) { toast(err.message, 'err'); }
+  e.target.value = '';
+};
+$('#btn-theme').onclick = () => {
+  const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const nx = cur === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = nx; store.set('theme', nx);
+};
+function mergeData(d) {
+  const z = getCounter(), dz = d.zaehler;
+  if (dz && (dz.jahr > z.jahr || (dz.jahr === z.jahr && dz.n > z.n))) store.set('zaehler', dz);
+  const k = store.get('kunden', {}); let changedAny = false;
+  for (const [key, v] of Object.entries(d.kunden || {})) if (!k[key] || (v.ts || 0) > (k[key].ts || 0)) { k[key] = v; changedAny = true; }
+  store.set('kunden', k);
+  const byId = new Map(store.get('verlauf', []).map(h => [h.nr, h]));
+  for (const h of d.verlauf || []) { const cur = byId.get(h.nr); if (!cur || (h.ts || 0) > (cur.ts || 0)) { byId.set(h.nr, h); changedAny = true; } }
+  store.set('verlauf', [...byId.values()].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 500));
+  return changedAny;
+}
+
+/* ---------- OneDrive (Microsoft Graph) ---------- */
+const SCOPES = ['Files.ReadWrite.All'];
+let msalP = null;
+const encPath = p => String(p || '').split('/').map(s => s.trim()).filter(Boolean).map(encodeURIComponent).join('/');
+const shareId = url => 'u!' + btoa(unescape(encodeURIComponent(url.trim()))).replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
+const jahresOrdner = iso => { const y = (iso || today()).slice(0, 4); return (S.od.jahresOrdner || '').replace(/\{JJJJ\}/g, y).replace(/\{JJ\}/g, y.slice(2)); };
+async function odZiel() {
+  const link = (S.od.link || '').trim(); if (!link) return null;
+  if (S.od.ziel && S.od.ziel.link === link) return S.od.ziel;
+  const r = await graph(`/shares/${shareId(link)}/driveItem`);
+  if (!r.ok) throw new Error('Ordner-Link nicht erreichbar (' + r.status + '). Bitte Link in den Einstellungen prüfen.');
+  const j = await r.json();
+  S.od.ziel = { link, id: j.id, driveId: j.parentReference?.driveId || j.remoteItem?.parentReference?.driveId, name: j.name }; saveSettings();
+  return S.od.ziel;
+}
+async function odPath(rel) {
+  const z = await odZiel();
+  if (z) return `/drives/${z.driveId}/items/${z.id}:/${encPath(rel)}`;
+  return `/me/drive/root:/${encPath((S.od.ordner || 'Rechnungen') + '/' + rel)}`;
+}
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function odInit() {
+  if (!S.od.clientId) return Promise.reject(new Error('Keine Client-ID eingetragen.'));
+  if (msalP) return msalP;
+  msalP = (async () => {
+    if (!window.msal) await loadScript(MSAL_URLS);
+    const app = new msal.PublicClientApplication({
+      auth: { clientId: S.od.clientId.trim(), authority: 'https://login.microsoftonline.com/common', redirectUri: location.origin + location.pathname },
+      cache: { cacheLocation: 'localStorage' }
+    });
+    const r = await app.handleRedirectPromise();
+    if (r && r.account) app.setActiveAccount(r.account);
+    else { const a = app.getAllAccounts()[0]; if (a) app.setActiveAccount(a); }
+    return app;
+  })();
+  msalP.catch(() => { msalP = null; });
+  return msalP;
+}
+async function odToken() {
+  const app = await odInit(); const acc = app.getActiveAccount();
+  if (!acc) { const e = new Error('Nicht angemeldet'); e.needsLogin = true; throw e; }
+  try { return (await app.acquireTokenSilent({ scopes: SCOPES, account: acc })).accessToken; }
+  catch (err) { const e = new Error('Anmeldung abgelaufen'); e.needsLogin = true; throw e; }
+}
+async function odLogin() {
+  try {
+    const app = await odInit();
+    if (isStandalone()) { await app.loginRedirect({ scopes: SCOPES, prompt: 'select_account' }); return; }
+    const r = await app.loginPopup({ scopes: SCOPES, prompt: 'select_account' }); app.setActiveAccount(r.account);
+    toast('Mit OneDrive verbunden: ' + r.account.username, 'ok'); odStatus(); syncCloud(false).then(() => renderKunden());
+  } catch (e) {
+    if (/popup/i.test(e.errorCode || e.message)) { const app = await odInit(); await app.loginRedirect({ scopes: SCOPES }); return; }
+    toast('Anmeldung fehlgeschlagen: ' + (e.errorMessage || e.message), 'err', null, 8000);
+  }
+}
+async function odStatus() {
+  const el = $('#od-status'); if (!el) return;
+  if (!S.od.clientId) { el.textContent = 'Nicht eingerichtet'; return; }
+  try { const a = (await odInit()).getActiveAccount(); el.textContent = a ? 'Verbunden: ' + a.username : 'Nicht angemeldet'; } catch (e) { el.textContent = e.message; }
+}
+$('#btn-od-login').onclick = () => { if (!S.od.clientId) { toast('Zuerst die Client-ID eintragen (siehe Anleitung).', 'err'); return; } msalP = null; odLogin(); };
+$('#btn-od-logout').onclick = async () => { try { const app = await odInit(); const a = app.getActiveAccount(); if (a) await app.logoutPopup({ account: a }); } catch (e) { } msalP = null; odStatus(); };
+async function graph(path, opt = {}) {
+  const t = await odToken();
+  const res = await fetch('https://graph.microsoft.com/v1.0' + path, { ...opt, headers: { Authorization: 'Bearer ' + t, ...(opt.headers || {}) } });
+  if (res.status === 401) { const e = new Error('Anmeldung abgelaufen'); e.needsLogin = true; throw e; }
+  return res;
+}
+async function odUpload(blob, name, x = inv) {
+  const sub = jahresOrdner(x.datum);
+  const res = await graph(await odPath((sub ? sub + '/' : '') + name) + ':/content?@microsoft.graph.conflictBehavior=replace', { method: 'PUT', headers: { 'Content-Type': 'application/pdf' }, body: blob });
+  if (!res.ok) { let m = 'Fehler ' + res.status; try { m = (await res.json()).error.message; } catch (e) { } throw new Error(m); }
+  return res.json();
+}
+const SYNC_FILE = '_rechnungsapp-daten.json', ART_FILE = '_rechnungsapp-artikel.json';
+async function odSaveArtikel() {
+  if (!S.od.clientId) return false;
+  try { const f = store.get('feed', null); if (!f) return false; await odToken();
+    const r = await graph(await odPath(ART_FILE) + ':/content', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }); return r.ok;
+  } catch (e) { return false; }
+}
+async function odLoadArtikel() {
+  try { const r = await graph(await odPath(ART_FILE) + ':/content'); if (!r.ok) return;
+    const f = await r.json(); const cur = store.get('feed', null);
+    if (f?.items?.length && (!cur?.meta || f.meta.ts > cur.meta.ts)) setFeed(f.items, f.meta.quelle + ' (über OneDrive)', f.meta.ts);
+  } catch (e) { }
+}
+async function syncCloud(push) {
+  if (!S.od.clientId) return false;
+  try {
+    await odToken();
+    const sp = await odPath(SYNC_FILE) + ':/content';
+    const r = await graph(sp);
+    if (r.ok) mergeData(await r.json());
+    if (push || !r.ok) {
+      const data = { app: 'preisflieger-rechnung', zaehler: getCounter(), kunden: store.get('kunden', {}), verlauf: store.get('verlauf', []).slice(0, 300) };
+      await graph(sp, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    }
+    renderKunden(); return true;
+  } catch (e) { return false; }
+}
+
+/* ---------- Start ---------- */
+(function start() {
+  try { const th = store.get('theme', null); if (th) document.documentElement.dataset.theme = th; } catch (e) { }
+  inv.kunde ||= {}; inv.skonto ||= { proz: '', tage: S.skontoTage }; inv.modus ||= S.preisModus;
+  const cached = store.get('feed', null);
+  if (cached && cached.items) { indexArtikel(cached.items); feedStatus(cached.meta); }
+  renderAll();
+  loadLogos();
+  loadFeed(false);
+  if (S.od.clientId) odInit().then(app => { if (app.getActiveAccount()) { odLoadArtikel(); } if (app.getActiveAccount()) syncCloud(false).then(ok => { if (ok && !inv.saved && !inv.lines.length) { inv.nr = nextNr(); renderHead(); saveDraft(); } }); }).catch(() => { });
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
+})();
+</script>
+</body>
+</html>

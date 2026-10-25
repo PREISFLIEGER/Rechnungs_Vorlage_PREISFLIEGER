@@ -1,0 +1,34 @@
+# Holt den Artikel-Feed automatisch (z. B. aus Shopify) und legt ihn als Datei ins Projekt.
+# Aktiv nur, wenn unter Settings → Secrets and variables → Actions → Variables
+# die Variable FEED_URL gesetzt ist. Optional: FEED_FILE (Standard: artikel.csv).
+name: Artikel-Feed aktualisieren
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 3 * * *'   # täglich ca. 05:23 Uhr österreichischer Zeit
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    if: ${{ vars.FEED_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Feed herunterladen
+        env:
+          FEED_URL: ${{ vars.FEED_URL }}
+          FEED_FILE: ${{ vars.FEED_FILE || 'artikel.csv' }}
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 "$FEED_URL" -o feed.tmp
+          if [ "$(wc -c < feed.tmp)" -lt 50 ]; then echo "Feed ist leer – nichts geändert."; exit 1; fi
+          mv feed.tmp "$FEED_FILE"
+      - name: Änderungen speichern
+        run: |
+          git config user.name "feed-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Feed unverändert."; else git commit -m "Artikel-Feed aktualisiert" && git push; fi
