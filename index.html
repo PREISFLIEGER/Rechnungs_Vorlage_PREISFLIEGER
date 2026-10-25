@@ -146,6 +146,10 @@ html.locked #lock{display:grid}
 .l-ust{border:1px solid var(--line);border-radius:8px;padding:7px 6px;background:var(--sheet)}
 .l-total{margin-left:auto;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:500;font-size:15.5px}
 .empty{margin:0;padding:18px 14px;border:1.5px dashed var(--line);border-radius:var(--r);color:var(--muted);font-size:14px;text-align:center}
+.typwahl{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;text-transform:none;letter-spacing:0;margin-left:10px;vertical-align:2px}
+.typwahl button{border:0;background:transparent;padding:4px 12px;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.typwahl button[aria-pressed=true]{background:var(--orange);color:#fff}
+.h-item .typ{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--orange);border-radius:4px;padding:0 5px;margin-right:6px;vertical-align:1px}
 .mode{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;text-transform:none;letter-spacing:0}
 .mode button{border:0;background:transparent;padding:3px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
 .mode button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
@@ -244,13 +248,15 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
 
 <main>
   <section>
-    <h2>Rechnung</h2>
+    <h2><span id="typ-titel">Rechnung</span>
+      <span class="typwahl" role="group" aria-label="Belegart"><button type="button" id="typ-rechnung" aria-pressed="true">Rechnung</button><button type="button" id="typ-gutschrift" aria-pressed="false">Gutschrift</button></span></h2>
     <div class="grid">
-      <label class="f">Rechnungsnummer
+      <label class="f"><span id="lbl-nr">Rechnungsnummer</span>
         <span class="nr-wrap"><input id="inv-nr" class="in" autocomplete="off"><button class="btn" id="btn-nextnr" type="button" title="Nächste freie Nummer">+1</button></span>
       </label>
-      <label class="f">Rechnungsdatum<input id="inv-datum" type="date"></label>
+      <label class="f"><span id="lbl-datum">Rechnungsdatum</span><input id="inv-datum" type="date"></label>
       <label class="f">Leistungs-/Lieferdatum<input id="inv-leistung" type="date"></label>
+      <label class="f" id="bezug-wrap" hidden>zu Rechnung Nr.<input id="inv-bezug" class="in" autocomplete="off" placeholder="z. B. RE_26_31"></label>
     </div>
   </section>
 
@@ -288,17 +294,17 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
     <div class="sheet"><div class="totals" id="totals"></div></div>
     <div class="grid">
       <label class="f">Rabatt auf alles in %<input id="rab-proz" inputmode="decimal" placeholder="0"></label>
-      <label class="f">Skonto in %<input id="sk-proz" inputmode="decimal" placeholder="0"></label>
-      <label class="f">Skonto-Frist (Tage)<input id="sk-tage" inputmode="numeric"></label>
+      <label class="f nur-re">Skonto in %<input id="sk-proz" inputmode="decimal" placeholder="0"></label>
+      <label class="f nur-re">Skonto-Frist (Tage)<input id="sk-tage" inputmode="numeric"></label>
     </div>
     <div class="sheet pay" id="pay"></div>
-    <label class="f">Bemerkung auf der Rechnung<textarea id="inv-notiz" rows="2" placeholder="optional, z. B. Lieferung erfolgte am …"></textarea></label>
+    <label class="f"><span id="lbl-notiz">Bemerkung auf der Rechnung</span><textarea id="inv-notiz" rows="2" placeholder="optional, z. B. Lieferung erfolgte am …"></textarea></label>
   </section>
   <div class="foot"><img src="img/logo-recycled-600.png" alt="Recycled Packaging"></div>
 </main>
 
 <div class="bar"><div class="bar-in">
-  <div class="sum"><small>Gesamtbetrag</small><strong id="bar-sum">€ 0,00</strong></div>
+  <div class="sum"><small id="bar-lbl">Gesamtbetrag</small><strong id="bar-sum">€ 0,00</strong></div>
   <button class="btn" id="btn-preview" type="button" title="PDF ansehen / drucken"><span aria-hidden="true">👁</span> <span class="lbl">Vorschau</span></button>
   <button class="btn" id="btn-share" type="button" title="PDF teilen oder herunterladen"><span aria-hidden="true">⇪</span> <span class="lbl">PDF</span></button>
   <button class="btn pri" id="btn-save" type="button">Fertig &amp; speichern</button>
@@ -352,6 +358,7 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
     <section><h2>Rechnung</h2><div class="sheet">
       <div class="grid two">
         <label class="f">Nummernformat<input id="s-nrformat" data-s="nummernFormat"></label>
+        <label class="f">Nummernformat Gutschrift<input id="s-gsformat" data-s="gsFormat" placeholder="GS_{JJ}_{N}"></label>
         <label class="f">Zuletzt vergebene Nummer<input id="s-lastnr" class="num"></label>
       </div>
       <p class="hint"><code>{JJ}</code> = Jahr zweistellig, <code>{JJJJ}</code> = vierstellig, <code>{N}</code> = laufende Nummer (<code>{NNN}</code> = immer 3 Stellen). Zum Jahreswechsel beginnt die Zählung wieder bei 1. Im Dateinamen steht <code>{NR}</code> für die Nummer und <code>{KUNDE}</code> für den Kundennamen.</p>
@@ -366,6 +373,8 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
       <label class="f chk"><input type="checkbox" id="s-ku" data-s="kleinunternehmer"> Kleinunternehmer (keine Umsatzsteuer ausweisen)</label>
       <label class="f">Hinweis Kleinunternehmer<input id="s-kutext" data-s="kuText"></label>
       <label class="f">Zahlungs- und Lieferbedingungen (Fußtext)<textarea id="s-bed" data-s="bedingungen" rows="6"></textarea></label>
+      <label class="f">Text auf Gutschriften ({BETRAG} = Betrag)<textarea id="s-gstext" data-s="gsText" rows="2"></textarea></label>
+      <label class="f">Fußtext auf Gutschriften (optional)<textarea id="s-gsbed" data-s="gsBedingungen" rows="2"></textarea></label>
     </div></section>
 
     <section><h2>Artikel-Feed</h2><div class="sheet">
@@ -442,6 +451,7 @@ const DEFAULTS = {
   preisModus: 'netto', feedPreis: 'netto', standardUst: '20', skontoTage: '10', skontoProz: '',
   feedUrl: 'artikel.csv', nummernFormat: 'RE_{JJ}_{N}', dateiName: '{NR} {KUNDE}', bedingungen: BEDINGUNGEN,
   lagerPfad: 'PREISFLIEGER/Produktlisten/Produktliste',
+  gsFormat: 'GS_{JJ}_{N}', gsText: 'Der Gutschriftbetrag von {BETRAG} wird Ihnen überwiesen bzw. mit offenen Beträgen verrechnet.', gsBedingungen: '',
   od: { clientId: '3efe35a6-1e8c-4e5a-9afb-fd7e09a3fca7', ordner: 'Rechnungen', jahresOrdner: 'Preisflieger {JJJJ}',
         link: 'https://1drv.ms/f/c/cf660f8fc97bad14/IgBj1ZZZdngOQY13-ejuata2ASemxCEWKScN9_w_uQ0MNUg?e=rJMasQ', ziel: null },
   logo: 'img/logo-preisflieger-600.png', logo2: 'img/logo-recycled-600.png'
@@ -513,17 +523,20 @@ function parseNr(str, f = S.nummernFormat) {
   groups.forEach((g, i) => { const v = m[i + 1]; if (g === 'y4') jahr = +v; if (g === 'y2') jahr = 2000 + +v; if (g === 'n') n = +v; });
   return n == null ? null : { jahr, n };
 }
-const hasYear = () => /\{JJ/.test(S.nummernFormat);
-function getCounter() { return store.get('zaehler', { jahr: 2026, n: 30 }); }
-function nextNr() {
-  const y = new Date().getFullYear(); const z = getCounter();
-  const n = (!hasYear() || z.jahr === y) ? z.n : 0;
-  return fmtNr(y, n + 1);
+// Zwei Nummernkreise: Rechnungen (RE_26_31 …) und Gutschriften (GS_26_1 …)
+const istGS = x => (x?.typ || 'rechnung') === 'gutschrift';
+const nrFormat = typ => typ === 'gutschrift' ? (S.gsFormat || 'GS_{JJ}_{N}') : S.nummernFormat;
+const hasYear = (typ = 'rechnung') => /\{JJ/.test(nrFormat(typ));
+function getCounter(typ = 'rechnung') { return typ === 'gutschrift' ? store.get('zaehlerGS', { jahr: 2026, n: 0 }) : store.get('zaehler', { jahr: 2026, n: 30 }); }
+function nextNr(typ = 'rechnung') {
+  const y = new Date().getFullYear(); const z = getCounter(typ);
+  const n = (!hasYear(typ) || z.jahr === y) ? z.n : 0;
+  return fmtNr(y, n + 1, nrFormat(typ));
 }
-function bumpCounter(nr) {
-  const p = parseNr(nr); if (!p) return;
-  const y = p.jahr ?? new Date().getFullYear(); const z = getCounter();
-  if (hasYear() ? (y > z.jahr || (y === z.jahr && p.n > z.n)) : p.n > z.n) store.set('zaehler', { jahr: y, n: p.n });
+function bumpCounter(nr, typ = 'rechnung') {
+  const p = parseNr(nr, nrFormat(typ)); if (!p) return;
+  const y = p.jahr ?? new Date().getFullYear(); const z = getCounter(typ);
+  if (hasYear(typ) ? (y > z.jahr || (y === z.jahr && p.n > z.n)) : p.n > z.n) store.set(typ === 'gutschrift' ? 'zaehlerGS' : 'zaehler', { jahr: y, n: p.n });
 }
 
 /* ---------- Rechnung (Entwurf) ---------- */
@@ -881,12 +894,13 @@ function updateTotals() {
     h += `<span class="lbl">Summe netto</span><span class="v">${eur(c.net)}</span>`;
     for (const g of c.groups) h += `<span class="lbl">USt ${fmtQty(g.rate)} %</span><span class="v">${eur(g.vat)}</span>`;
   }
-  h += `<span class="grand">Gesamtbetrag</span><span class="v grand">${eur(c.gross)}</span>`;
-  if (c.skonto > 0) h += `<span class="lbl">${fmtQty(c.skonto)} % Skonto bis ${dfmt(addDays(inv.datum, inv.skonto.tage))}</span><span class="v">- ${eur(c.skBetrag)}</span><span class="lbl">Zahlbetrag mit Skonto</span><span class="v">${eur(c.zahlSkonto)}</span>`;
+  h += `<span class="grand">${istGS(inv) ? 'Gutschriftbetrag' : 'Gesamtbetrag'}</span><span class="v grand">${eur(c.gross)}</span>`;
+  if (c.skonto > 0 && !istGS(inv)) h += `<span class="lbl">${fmtQty(c.skonto)} % Skonto bis ${dfmt(addDays(inv.datum, inv.skonto.tage))}</span><span class="v">- ${eur(c.skBetrag)}</span><span class="lbl">Zahlbetrag mit Skonto</span><span class="v">${eur(c.zahlSkonto)}</span>`;
   T.innerHTML = h;
   $('#bar-sum').textContent = eur(c.gross);
+  $('#bar-lbl').textContent = istGS(inv) ? 'Gutschrift' : 'Gesamtbetrag';
   const pay = $('#pay');
-  if (qrPossible() && c.gross > 0) {
+  if (qrPossible() && c.gross > 0 && !istGS(inv)) {
     pay.innerHTML = `<div class="qr" id="qr-small" role="button" tabindex="0" aria-label="QR-Code groß anzeigen">${qrSvg(epcText(c.gross, inv.nr))}</div>
       <div class="txt"><b>Zahlungs-QR mit ${eur(c.gross)}</b><br>IBAN ${esc(S.bank.iban)} · ${esc(S.bank.inhaber)}<br>Verwendungszweck „Rechnung ${esc(inv.nr)}“. Antippen zum Vorzeigen.</div>`;
     pay.hidden = false;
@@ -901,8 +915,34 @@ function renderHead() {
   $('#rab-proz').value = inv.rabatt || ''; $('#sk-proz').value = inv.skonto?.proz || ''; $('#sk-tage').value = inv.skonto?.tage ?? S.skontoTage; $('#inv-notiz').value = inv.notiz || '';
   $('#mode-brutto').setAttribute('aria-pressed', inv.modus === 'brutto'); $('#mode-netto').setAttribute('aria-pressed', inv.modus === 'netto');
   $('.mode').hidden = !!S.kleinunternehmer;
+  renderTyp();
 }
-function renderAll() { renderHead(); renderLines(); renderKunden(); }
+function renderTyp() {
+  const gs = istGS(inv);
+  $('#typ-rechnung').setAttribute('aria-pressed', !gs); $('#typ-gutschrift').setAttribute('aria-pressed', gs);
+  $('#typ-titel').textContent = gs ? 'Gutschrift' : 'Rechnung';
+  $('#lbl-nr').textContent = gs ? 'Gutschrift-Nummer' : 'Rechnungsnummer';
+  $('#lbl-datum').textContent = gs ? 'Gutschriftdatum' : 'Rechnungsdatum';
+  $('#lbl-notiz').textContent = gs ? 'Bemerkung auf der Gutschrift' : 'Bemerkung auf der Rechnung';
+  $('#bezug-wrap').hidden = !gs; $('#inv-bezug').value = inv.bezug || '';
+  $$('.nur-re').forEach(el => el.hidden = gs);
+  $('#btn-save').textContent = gs ? 'Gutschrift fertig & speichern' : $('#btn-save').dataset.txt || $('#btn-save').textContent;
+}
+function setTyp(t) {
+  if ((inv.typ || 'rechnung') === t) return;
+  if (inv.saved) { toast('Diese Rechnung ist schon gespeichert. Für eine Gutschrift dazu: Verlauf → „Gutschrift“.', 'err', null, 6000); return; }
+  inv.typ = t; inv.nr = nextNr(t);
+  if (t === 'gutschrift') { inv.skonto = { proz: '', tage: inv.skonto?.tage ?? S.skontoTage }; } else { inv.bezug = ''; inv.bezugDatum = ''; }
+  renderHead(); changed(false);
+}
+$('#typ-rechnung').onclick = () => setTyp('rechnung');
+$('#typ-gutschrift').onclick = () => setTyp('gutschrift');
+$('#inv-bezug').addEventListener('input', e => {
+  inv.bezug = e.target.value.trim();
+  const h = store.get('verlauf', []).find(x => x.nr === inv.bezug && !istGS(x.inv)); inv.bezugDatum = h ? h.datum : '';
+  changed(false);
+});
+function renderAll() { if (!$('#btn-save').dataset.txt) $('#btn-save').dataset.txt = $('#btn-save').textContent; renderHead(); renderLines(); renderKunden(); }
 function changed(structure) { inv.saved = false; if (structure) renderLines(); else updateTotals(); saveDraft(); }
 
 $('#inv-nr').addEventListener('input', e => { inv.nr = e.target.value.trim(); changed(false); });
@@ -996,10 +1036,10 @@ function showBigQR() {
 
 $('#btn-nextnr').onclick = async () => {
   await syncCloud(false);
-  inv.nr = nextNr(); $('#inv-nr').value = inv.nr; changed(false);
+  inv.nr = nextNr(inv.typ || 'rechnung'); $('#inv-nr').value = inv.nr; changed(false);
 };
 $('#btn-new').onclick = () => {
-  const go = () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); syncCloud(false).then(r => { if (r && !inv.lines.length) { inv.nr = nextNr(); $('#inv-nr').value = inv.nr; saveDraft(); } }); window.scrollTo({ top: 0 }); };
+  const go = () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); syncCloud(false).then(r => { if (r && !inv.lines.length) { inv.nr = nextNr(inv.typ || 'rechnung'); $('#inv-nr').value = inv.nr; saveDraft(); } }); window.scrollTo({ top: 0 }); };
   if (!inv.saved && inv.lines.length) toast('Aktuelle Rechnung ist nicht gespeichert.', '', { label: 'Trotzdem neu', fn: go }); else go();
 };
 
@@ -1010,7 +1050,8 @@ function buildPdf(x = inv) {
   const c = compute(x), ku = !!S.kleinunternehmer;
   const L = 20, R = 190, ink = [18, 26, 44], grey = [96, 104, 120], rule = [205, 210, 220], tint = [232, 237, 246], navy = [11, 42, 91], orange = [232, 111, 0];
   const F = S.firma;
-  doc.setProperties({ title: 'Rechnung ' + x.nr, author: F.name, subject: 'Rechnung ' + x.nr, creator: 'Preisflieger Rechnung' });
+  const GS = istGS(x), BELEG = GS ? 'Gutschrift' : 'Rechnung';
+  doc.setProperties({ title: BELEG + ' ' + x.nr, author: F.name, subject: BELEG + ' ' + x.nr, creator: 'Preisflieger Rechnung' });
   doc.setTextColor(...ink); doc.setLineWidth(0.2);
 
   // Logo
@@ -1036,10 +1077,13 @@ function buildPdf(x = inv) {
 
   // Titel + Rechnungsdaten
   const ty = Math.max(94, ky + 10);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(21); doc.setTextColor(...navy); doc.text('Rechnung', L, ty);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(21); doc.setTextColor(...navy); doc.text(BELEG, L, ty);
   doc.setDrawColor(...orange); doc.setLineWidth(0.9); doc.line(L, ty + 2.6, L + 24, ty + 2.6); doc.setLineWidth(0.2); doc.setTextColor(...ink);
   let my = ty - 12; doc.setFontSize(9.5);
-  for (const [a, b] of [['Rechnungsnummer', x.nr], ['Rechnungsdatum', dfmt(x.datum)], ['Leistungsdatum', dfmt(x.leistung || x.datum)]]) {
+  const kopf = GS ? [['Gutschrift-Nr.', x.nr], ['Gutschriftdatum', dfmt(x.datum)], ...(x.bezug ? [['Zu Rechnung', x.bezug]] : []), ...(x.bezug && x.bezugDatum ? [['vom', dfmt(x.bezugDatum)]] : []), ['Leistungsdatum', dfmt(x.leistung || x.datum)]]
+    : [['Rechnungsnummer', x.nr], ['Rechnungsdatum', dfmt(x.datum)], ['Leistungsdatum', dfmt(x.leistung || x.datum)]];
+  my -= (kopf.length - 3) * 5.2;
+  for (const [a, b] of kopf) {
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...grey); doc.text(a, sx, my);
     doc.setFont('helvetica', 'bold'); doc.setTextColor(...ink); doc.text(b, R, my, { align: 'right' }); my += 5.2;
   }
@@ -1087,8 +1131,8 @@ function buildPdf(x = inv) {
   if (c.rabatt > 0) { tl(x.modus === 'brutto' && !ku ? 'Zwischensumme brutto' : 'Zwischensumme', eur(c.zwischen)); tl(`abzüglich ${fmtQty(c.rabatt)} % Rabatt`, '- ' + eur(c.rabBetrag)); }
   if (!ku) { tl('Summe netto', eur(c.net)); for (const g of c.groups) tl(`USt ${fmtQty(g.rate)} % von ${eur(g.net)}`, eur(g.vat)); }
   doc.setDrawColor(...orange); doc.setLineWidth(0.6); doc.line(lx, y2 - 3.2, R, y2 - 3.2); doc.setLineWidth(0.2); y2 += 2.4;
-  tl('Gesamtbetrag', eur(c.gross), true, 12);
-  if (c.skonto > 0) { tl(`${fmtQty(c.skonto)} % Skonto bis ${dfmt(addDays(x.datum, x.skonto.tage))}`, '- ' + eur(c.skBetrag)); tl('Zahlbetrag mit Skonto', eur(c.zahlSkonto), true); }
+  tl(GS ? 'Gutschriftbetrag' : 'Gesamtbetrag', eur(c.gross), true, 12);
+  if (c.skonto > 0 && !GS) { tl(`${fmtQty(c.skonto)} % Skonto bis ${dfmt(addDays(x.datum, x.skonto.tage))}`, '- ' + eur(c.skBetrag)); tl('Zahlbetrag mit Skonto', eur(c.zahlSkonto), true); }
   // Hinweis links neben den Summen
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...grey);
   const note = ku ? (S.kuText || '') : (x.modus === 'brutto' ? 'Alle Preise in Euro inkl. USt.' : 'Alle Preise in Euro zzgl. USt.');
@@ -1104,14 +1148,19 @@ function buildPdf(x = inv) {
   }
 
   // Bankverbindung + QR
-  const B = S.bank; const withQR = qrPossible() && c.gross > 0;
-  const bh = withQR ? 42 : 34;
+  const B = S.bank; const withQR = qrPossible() && c.gross > 0 && !GS;
+  const bh = GS ? 20 : withQR ? 42 : 34;
   let by = y3 + 2;
   if (by + bh > 276) { doc.addPage(); by = 25; }
   doc.setDrawColor(...rule); doc.roundedRect(L, by, R - L, bh, 1.8, 1.8, 'S');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...navy); doc.text('Bankverbindung', L + 5, by + 7.5);
+  if (GS) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...navy); doc.text('Gutschrift', L + 5, by + 7.5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...ink);
+    doc.text(doc.splitTextToSize((S.gsText || 'Der Gutschriftbetrag von {BETRAG} wird Ihnen überwiesen bzw. mit offenen Beträgen verrechnet.').replace(/\{BETRAG\}/g, eur(c.gross)), R - L - 10), L + 5, by + 13.5);
+  }
   let yb = by + 13.5; doc.setFontSize(9);
-  for (const [a, b, bold] of [['Bank', B.name], ['Kontoinhaber', B.inhaber], ['IBAN', B.iban, true], ['BIC', B.bic], ['Verwendung', 'Rechnung ' + x.nr, true]]) {
+  if (!GS) doc.setFont('helvetica', 'bold'), doc.setFontSize(10), doc.setTextColor(...navy), doc.text('Bankverbindung', L + 5, by + 7.5), doc.setFontSize(9);
+  if (!GS) for (const [a, b, bold] of [['Bank', B.name], ['Kontoinhaber', B.inhaber], ['IBAN', B.iban, true], ['BIC', B.bic], ['Verwendung', 'Rechnung ' + x.nr, true]]) {
     if (!b) continue;
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...grey); doc.text(a, L + 5, yb);
     doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...ink); doc.text(String(b), L + 30, yb); yb += 4.7;
@@ -1131,7 +1180,7 @@ function buildPdf(x = inv) {
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...grey);
   const l2 = LOGO.logo2; let l2w = 0, l2h = 0;
   if (l2) { l2h = 21; l2w = l2h * l2.w / l2.h; }
-  const bed = (S.bedingungen || '').split('\n').flatMap(p => doc.splitTextToSize(p, R - L - (l2 ? l2w + 6 : 0)));
+  const bed = (GS ? (S.gsBedingungen || '') : (S.bedingungen || '')).split('\n').flatMap(p => doc.splitTextToSize(p, R - L - (l2 ? l2w + 6 : 0)));
   if (y4 + Math.max(bed.length * 3.7, l2h) > 280) { doc.addPage(); y4 = 25; }
   if (l2) { try { doc.addImage(l2.data, 'PNG', R - l2w, y4 - 3, l2w, l2h, 'logo2'); } catch (e) { } }
   for (const line of bed) { if (y4 > 278) { doc.addPage(); y4 = 25; } doc.text(line, L, y4); y4 += 3.7; }
@@ -1207,7 +1256,7 @@ $('#btn-save').onclick = async () => {
     archive();
     lagerVormerken(inv);
     syncCloud(true); lagerSenden();
-    toast(`Rechnung ${inv.nr} gespeichert (${where}).`, 'ok', { label: 'Neue Rechnung', fn: () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); window.scrollTo({ top: 0 }); } });
+    toast(`${istGS(inv) ? 'Gutschrift' : 'Rechnung'} ${inv.nr} gespeichert (${where}).`, 'ok', { label: 'Neue Rechnung', fn: () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); window.scrollTo({ top: 0 }); } });
   } finally { btn.disabled = false; btn.textContent = old; }
 };
 function archive() {
@@ -1218,7 +1267,7 @@ function archive() {
   store.set('verlauf', hist.slice(0, 500));
   const kunden = store.get('kunden', {}); const key = norm((inv.kunde.name || '').trim());
   if (key) { kunden[key] = { ...inv.kunde, ts: Date.now() }; store.set('kunden', kunden); }
-  bumpCounter(inv.nr); renderKunden();
+  bumpCounter(inv.nr, inv.typ || 'rechnung'); renderKunden();
 }
 
 /* ---------- Verlauf ---------- */
@@ -1229,13 +1278,19 @@ function renderHist() {
   for (const h of list.slice(0, 200)) {
     const el = document.createElement('div'); el.className = 'h-item';
     el.innerHTML = `<span class="nr"></span><span class="k"></span><span class="b"></span><span class="d"></span>
-      <div class="acts"><button class="btn small" data-a="open" type="button">Öffnen</button><button class="btn small" data-a="copy" type="button">Als Vorlage</button><button class="btn small" data-a="pdf" type="button">PDF</button><button class="btn ghost small" data-a="del" type="button">Löschen</button></div>`;
-    el.querySelector('.nr').textContent = h.nr; el.querySelector('.k').textContent = h.kunde; el.querySelector('.b').textContent = eur(h.brutto); el.querySelector('.d').textContent = dfmt(h.datum);
+      <div class="acts"><button class="btn small" data-a="open" type="button">Öffnen</button><button class="btn small" data-a="copy" type="button">Als Vorlage</button><button class="btn small" data-a="pdf" type="button">PDF</button><button class="btn small" data-a="gs" type="button">Gutschrift</button><button class="btn ghost small" data-a="del" type="button">Löschen</button></div>`;
+    el.querySelector('.nr').innerHTML = (istGS(h.inv) ? '<span class="typ">GS</span>' : '') + esc(h.nr); if (istGS(h.inv)) el.querySelector('[data-a=gs]').remove(); el.querySelector('.k').textContent = h.kunde; el.querySelector('.b').textContent = eur(h.brutto); el.querySelector('.d').textContent = dfmt(h.datum);
     el.addEventListener('click', e => {
       const a = e.target.dataset.a; if (!a) return;
       if (a === 'open') { inv = JSON.parse(JSON.stringify(h.inv)); store.set('draft', inv); renderAll(); $('#dlg-hist').close(); }
-      if (a === 'copy') { const n = JSON.parse(JSON.stringify(h.inv)); Object.assign(n, { id: uid(), nr: nextNr(), datum: today(), leistung: today(), saved: false }); n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); $('#dlg-hist').close(); toast('Kopie mit neuer Nummer ' + inv.nr + ' angelegt.'); }
+      if (a === 'copy') { const n = JSON.parse(JSON.stringify(h.inv)); Object.assign(n, { id: uid(), nr: nextNr(n.typ || 'rechnung'), datum: today(), leistung: today(), saved: false }); n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); $('#dlg-hist').close(); toast('Kopie mit neuer Nummer ' + inv.nr + ' angelegt.'); }
       if (a === 'pdf') { download(buildPdf(h.inv).output('blob'), pdfName(h.inv)); }
+      if (a === 'gs') {
+        const n = JSON.parse(JSON.stringify(h.inv));
+        Object.assign(n, { id: uid(), typ: 'gutschrift', nr: nextNr('gutschrift'), datum: today(), leistung: h.inv.leistung || h.inv.datum, bezug: h.nr, bezugDatum: h.datum, saved: false, skonto: { proz: '', tage: S.skontoTage }, notiz: '' });
+        n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); $('#dlg-hist').close();
+        toast(`Gutschrift ${inv.nr} zu Rechnung ${h.nr} angelegt – Positionen und Mengen anpassen, die nicht zurückkommen, entfernen.`, 'ok', null, 7000);
+      }
       if (a === 'del') {
         if (e.target.dataset.sure) { store.set('verlauf', store.get('verlauf', []).filter(x => x.id !== h.id)); renderHist(); }
         else { e.target.dataset.sure = '1'; e.target.textContent = 'Wirklich löschen?'; }
@@ -1300,7 +1355,7 @@ $$('[data-logo]').forEach(inp => inp.onchange = e => {
 });
 $$('[data-logodel]').forEach(b => b.onclick = () => { S[b.dataset.logodel] = null; saveSettings(); loadLogos(); renderSettings(); });
 $('#btn-export').onclick = () => {
-  const data = { app: 'preisflieger-rechnung', version: VERSION, exportiert: new Date().toISOString(), settings: S, zaehler: getCounter(), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []) };
+  const data = { app: 'preisflieger-rechnung', version: VERSION, exportiert: new Date().toISOString(), settings: S, zaehler: getCounter(), zaehlerGS: getCounter('gutschrift'), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []) };
   download(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }), `Rechnung-Sicherung-${today()}.json`);
 };
 $('#imp-file').onchange = async e => {
@@ -1318,6 +1373,8 @@ $('#btn-theme').onclick = () => {
 function mergeData(d) {
   const z = getCounter(), dz = d.zaehler;
   if (dz && (dz.jahr > z.jahr || (dz.jahr === z.jahr && dz.n > z.n))) store.set('zaehler', dz);
+  const zg = getCounter('gutschrift'), dg = d.zaehlerGS;
+  if (dg && (dg.jahr > zg.jahr || (dg.jahr === zg.jahr && dg.n > zg.n))) store.set('zaehlerGS', dg);
   const k = store.get('kunden', {}); let changedAny = false;
   const tomb = store.get('kundenGeloescht', {});
   for (const [key, t] of Object.entries(d.kundenGeloescht || {})) if (!tomb[key] || t > tomb[key]) tomb[key] = t;
@@ -1421,7 +1478,8 @@ function lagerZeilen(x) {
 }
 function lagerVormerken(x) {
   if (!x.nr || /^test/i.test(x.nr)) return;          // Test-Rechnungen buchen nichts
-  const offen = store.get('lagerOffen', {}); offen[x.nr] = { ts: Date.now(), zeilen: lagerZeilen(x) }; store.set('lagerOffen', offen);
+  const zeilen = lagerZeilen(x); if (istGS(x)) zeilen.forEach(z => z.menge = -z.menge);   // Gutschrift: Verkauf wird wieder abgezogen
+  const offen = store.get('lagerOffen', {}); offen[x.nr] = { ts: Date.now(), zeilen }; store.set('lagerOffen', offen);
 }
 let lagerLaeuft = false;
 async function lagerSenden() {
@@ -1468,7 +1526,7 @@ async function syncCloud(push) {
     const r = await graph(sp);
     if (r.ok) mergeData(await r.json());
     if (push || !r.ok) {
-      const data = { app: 'preisflieger-rechnung', zaehler: getCounter(), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []).slice(0, 300) };
+      const data = { app: 'preisflieger-rechnung', zaehler: getCounter(), zaehlerGS: getCounter('gutschrift'), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []).slice(0, 300) };
       await graph(sp, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     }
     renderKunden(); return true;
@@ -1484,7 +1542,7 @@ async function syncCloud(push) {
   renderAll();
   loadLogos();
   loadFeed(false);
-  if (S.od.clientId) odInit().then(app => { if (app.getActiveAccount()) { odLoadArtikel(); } if (app.getActiveAccount()) { lagerSenden(); } if (app.getActiveAccount()) syncCloud(false).then(ok => { if (ok && !inv.saved && !inv.lines.length) { inv.nr = nextNr(); renderHead(); saveDraft(); } }); }).catch(() => { });
+  if (S.od.clientId) odInit().then(app => { if (app.getActiveAccount()) { odLoadArtikel(); } if (app.getActiveAccount()) { lagerSenden(); } if (app.getActiveAccount()) syncCloud(false).then(ok => { if (ok && !inv.saved && !inv.lines.length) { inv.nr = nextNr(inv.typ || 'rechnung'); renderHead(); saveDraft(); } }); }).catch(() => { });
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 })();
 </script>
