@@ -137,6 +137,17 @@ rechnen sich über die vorhandenen Formeln. Wird eine Rechnung geändert, bucht 
 Rechnungen mit der Nummer „TEST…“ werden nicht gebucht.
 In der App steht der Lagerbestand in der Artikelsuche, und sie warnt, wenn mehr verkauft wird als lagernd ist.
 
+## 7a. Shop (preisflieger.at) – Lager im Shop buchen
+
+Ab Version 1.1 kann die App direkt mit dem WooCommerce-Shop arbeiten (Plugin „PREISFLIEGER Sync“ ab 1.2):
+**Einstellungen → Shop** → den Zugang aus WordPress (*WooCommerce → PREISFLIEGER Sync → Rechnungs-App*) einfügen
+→ **Verbindung testen**. Danach:
+- **Verkäufe im Shop-Lager buchen:** bei „Fertig & speichern“ werden die Mengen im Shop ausgetragen
+  (geänderte Rechnungen buchen nur den Unterschied, Gutschriften buchen zurück, „TEST…“ bucht nichts).
+  Ist der Shop nicht erreichbar, holt die App das beim nächsten Öffnen nach.
+- **Artikelliste aus dem Shop laden:** statt `artikel.csv` – mit aktuellem Lagerstand aus dem Shop.
+- **Lagerbuchungen für die Excel:** solange die Excel noch läuft eingeschaltet lassen (Parallelbetrieb).
+
 ## 7. App-Sperre (PIN)
 
 **Einstellungen → Sperre → PIN festlegen** (4–12 Ziffern). Danach fragt die App beim Öffnen nach der PIN,

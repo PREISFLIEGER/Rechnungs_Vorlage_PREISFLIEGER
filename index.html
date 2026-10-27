@@ -408,6 +408,15 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
       <p class="hint" id="feed-detail"></p>
     </div></section>
 
+    <section><h2>Shop (preisflieger.at)</h2><div class="sheet">
+      <label class="f">Zugang für die Rechnungs-App<input id="s-shop-zugang" data-s="shop.zugang" placeholder="https://www.preisflieger.at/wp-json/preisflieger/v1/?key=…" autocomplete="off" spellcheck="false"></label>
+      <p class="hint">Steht in WordPress unter <b>WooCommerce → PREISFLIEGER Sync → Rechnungs-App</b>. Dort kopieren und hier einfügen – auf PC und Handy je einmal. Wird nur auf diesem Gerät gespeichert.</p>
+      <label class="f chk"><input type="checkbox" id="s-shop-buchen" data-s="shop.buchen"> Verkäufe im Shop-Lager buchen (bei „Fertig &amp; speichern“)</label>
+      <label class="f chk"><input type="checkbox" id="s-shop-feed" data-s="shop.feed"> Artikelliste und Lagerstand aus dem Shop laden (statt artikel.csv)</label>
+      <label class="f chk"><input type="checkbox" id="s-lager-excel" data-s="lagerExcel"> Lagerbuchungen weiterhin für die Excel schreiben (_lagerbuchungen.csv)</label>
+      <div class="row"><button class="btn small" id="btn-shop-test" type="button">Verbindung testen</button><span class="hint" id="shop-status"></span></div>
+    </div></section>
+
     <section><h2>OneDrive</h2><div class="sheet">
       <label class="f">Anwendungs-ID (Client-ID)<input id="s-od-id" data-s="od.clientId" placeholder="xxxxxxxx-xxxx-…" class="num"></label>
       <label class="f">Link zum Ordner „Rechnungen“<input id="s-od-link" data-s="od.link" placeholder="https://1drv.ms/f/…"></label>
@@ -449,7 +458,7 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
 <script src="vendor/papaparse.min.js"></script>
 <script>
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const MSAL_URLS = ['https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js','https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js'];
 const XLSX_URLS = ['vendor/xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 const $ = (s, r = document) => r.querySelector(s);
@@ -469,7 +478,8 @@ const DEFAULTS = {
   kuText: 'Umsatzsteuerbefreit – Kleinunternehmer gem. § 6 Abs. 1 Z 27 UStG.',
   preisModus: 'netto', feedPreis: 'netto', standardUst: '20', skontoTage: '10', skontoProz: '',
   feedUrl: 'artikel.csv', nummernFormat: 'RE_{JJ}_{N}', dateiName: '{NR} {KUNDE}', bedingungen: BEDINGUNGEN,
-  lagerPfad: 'PREISFLIEGER/Produktlisten/Produktliste',
+  lagerPfad: 'PREISFLIEGER/Produktlisten/Produktliste', lagerExcel: true,
+  shop: { zugang: '', buchen: false, feed: false },
   gsText: 'Der Gutschriftbetrag von {BETRAG} wird Ihnen überwiesen bzw. mit offenen Beträgen verrechnet.', gsBedingungen: '',
   od: { clientId: '3efe35a6-1e8c-4e5a-9afb-fd7e09a3fca7', ordner: 'Rechnungen', jahresOrdner: 'Preisflieger {JJJJ}',
         link: 'https://1drv.ms/f/c/cf660f8fc97bad14/IgBj1ZZZdngOQY13-ejuata2ASemxCEWKScN9_w_uQ0MNUg?e=rJMasQ', ziel: null },
@@ -757,7 +767,9 @@ function feedStatus(meta, err) {
   const det = $('#feed-detail'); if (det && meta) det.textContent = `Zuletzt geladen aus: ${meta.quelle}` + (err ? ` · Letzter Versuch: ${err}` : '');
 }
 async function loadFeed(manual = false) {
-  const url = (S.feedUrl || 'artikel.csv').trim();
+  const vomShop = !!(S.shop?.feed && shopZugang());
+  const url = vomShop ? shopUrl('artikel') : (S.feedUrl || 'artikel.csv').trim();
+  const label = vomShop ? 'Shop (' + new URL(shopZugang().basis).hostname + ')' : url;
   try {
     let res = await fetch(url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) throw new Error(`Feed nicht gefunden (HTTP ${res.status})`);
@@ -767,7 +779,7 @@ async function loadFeed(manual = false) {
     if (!manual && cached?.meta && cached.meta.ts >= stand && cached.items?.length) { feedStatus(cached.meta); return; }
     const list = await parseFeedBuffer(await res.arrayBuffer(), url);
     if (!list.length) throw new Error('Feed ist leer.');
-    setFeed(list, url, stand);
+    setFeed(list, label, stand);
     if (manual) toast(`${list.length} Artikel geladen.`, 'ok');
   } catch (e) {
     const msg = e instanceof TypeError ? 'Abruf blockiert oder offline' : e.message;
@@ -1275,7 +1287,7 @@ $('#btn-save').onclick = async () => {
     }
     archive();
     lagerVormerken(inv);
-    syncCloud(true); lagerSenden();
+    syncCloud(true); lagerSenden(); lagerShopSenden(true);
     updateTotals();
     toast(`${istGS(inv) ? 'Gutschrift' : 'Rechnung'} ${inv.nr} gespeichert (${where}).`, 'ok', { label: 'Senden', fn: () => openSend(inv) });
   } finally { btn.disabled = false; btn.textContent = old; }
@@ -1406,7 +1418,7 @@ $('#dlg-set').addEventListener('input', e => {
   setPath(S, el.dataset.s, el.type === 'checkbox' ? el.checked : el.value); saveSettings();
   if (['kleinunternehmer', 'qr'].includes(el.dataset.s) || el.dataset.s.startsWith('bank')) { renderHead(); renderLines(); }
 });
-$('#dlg-set').addEventListener('change', e => { if (e.target.id === 's-feedurl') loadFeed(true); if (e.target.id === 's-od-link') { S.od.ziel = null; saveSettings(); } });
+$('#dlg-set').addEventListener('change', e => { if (e.target.id === 's-feedurl' || e.target.id === 's-shop-feed' || (e.target.id === 's-shop-zugang' && S.shop.feed)) loadFeed(true); if (e.target.id === 's-od-link') { S.od.ziel = null; saveSettings(); } });
 $('#s-lastnr').addEventListener('change', e => {
   const p = parseNr(e.target.value); if (!p) { toast('Nummer passt nicht zum Nummernformat.', 'err'); return; }
   store.set('zaehler', { jahr: p.jahr ?? new Date().getFullYear(), n: p.n });
@@ -1415,6 +1427,7 @@ $('#s-lastnr').addEventListener('change', e => {
 });
 $('#btn-set').onclick = () => { renderSettings(); $('#dlg-set').showModal(); };
 $('#btn-feed-load').onclick = () => loadFeed(true);
+$('#btn-shop-test').onclick = shopTest;
 $('#btn-feed-csv').onclick = () => {
   if (!ARTIKEL.length) { toast('Es ist noch keine Artikelliste geladen.', 'err'); return; }
   const q = v => { v = String(v ?? ''); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
@@ -1564,7 +1577,48 @@ function lagerZeilen(x) {
 function lagerVormerken(x) {
   if (!x.nr || /^test/i.test(x.nr)) return;          // Test-Rechnungen buchen nichts
   const zeilen = lagerZeilen(x); if (istGS(x)) zeilen.forEach(z => z.menge = -z.menge);   // Gutschrift: Verkauf wird wieder abgezogen
-  const offen = store.get('lagerOffen', {}); offen[x.nr] = { ts: Date.now(), zeilen }; store.set('lagerOffen', offen);
+  if (S.lagerExcel !== false) { const offen = store.get('lagerOffen', {}); offen[x.nr] = { ts: Date.now(), zeilen }; store.set('lagerOffen', offen); }
+  if (S.shop?.buchen && shopZugang()) { const o2 = store.get('lagerOffenShop', {}); o2[x.nr] = { ts: Date.now(), zeilen }; store.set('lagerOffenShop', o2); }
+}
+
+/* ---------- Shop (WooCommerce, Plugin „PREISFLIEGER Sync“) ---------- */
+function shopZugang() {
+  const z = String(S.shop?.zugang || '').trim(); if (!z) return null;
+  try { const u = new URL(z); const key = u.searchParams.get('key'); if (!key || u.protocol !== 'https:') return null;
+    return { basis: u.origin + u.pathname.replace(/\/+$/, ''), key }; } catch (e) { return null; }
+}
+function shopUrl(pfad) { const z = shopZugang(); return z.basis + '/' + pfad + '?key=' + encodeURIComponent(z.key); }
+let shopLaeuft = false;
+async function lagerShopSenden(melden = false) {
+  const offen = store.get('lagerOffenShop', {}); const nrs = Object.keys(offen);
+  if (!nrs.length || !shopZugang() || shopLaeuft) return;
+  shopLaeuft = true;
+  try {
+    const res = await fetch(shopUrl('rechnung'), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, cache: 'no-store',
+      body: JSON.stringify({ buchungen: nrs.map(nr => ({ nr, zeilen: offen[nr].zeilen.map(z => ({ sku: z.sku, menge: z.menge, name: z.name })) })) }) });
+    if (!res.ok) throw new Error(res.status === 403 ? 'Zugang falsch (Schlüssel prüfen)' : 'HTTP ' + res.status);
+    const r = await res.json();
+    const jetzt = store.get('lagerOffenShop', {});
+    for (const nr of r.erledigt || []) if (jetzt[nr]?.ts === offen[nr]?.ts) delete jetzt[nr];
+    store.set('lagerOffenShop', jetzt);
+    if (r.fehlt?.length) toast('Shop-Lager: nicht im Shop gefunden – ' + [...new Set(r.fehlt.map(f => f.sku))].join(', '), 'err', null, 7000);
+    else if (melden && r.gebucht?.length) toast(`Shop-Lager gebucht (${r.gebucht.length} Artikel).`, 'ok');
+  } catch (e) {
+    if (melden) toast('Shop-Lager: ' + (e instanceof TypeError ? 'Shop nicht erreichbar' : e.message) + ' – wird beim nächsten Öffnen nachgeholt.', 'err', null, 7000);
+  } finally { shopLaeuft = false; }
+}
+async function shopTest() {
+  const st = $('#shop-status');
+  if (!shopZugang()) { st.textContent = 'Zugang fehlt oder ist unvollständig.'; return; }
+  st.textContent = 'Prüfe …';
+  try {
+    const res = await fetch(shopUrl('artikel') + '&v=' + Date.now(), { cache: 'no-store' });
+    if (res.status === 403) throw new Error('Schlüssel falsch');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const list = await res.json(); const offen = Object.keys(store.get('lagerOffenShop', {})).length;
+    st.textContent = `Verbunden – ${list.length} Artikel im Shop.` + (offen ? ` ${offen} Rechnung(en) warten noch auf Buchung.` : '');
+    lagerShopSenden(true);
+  } catch (e) { st.textContent = 'Fehler: ' + (e instanceof TypeError ? 'Shop nicht erreichbar' : e.message); }
 }
 let lagerLaeuft = false;
 async function lagerSenden() {
@@ -1627,6 +1681,11 @@ async function syncCloud(push) {
   renderAll();
   loadLogos();
   loadFeed(false);
+  lagerShopSenden(false);
+  // offene Shop-Buchungen von selbst nachholen: alle 2 Minuten, sobald wieder Internet da ist und beim Zurückkehren in die App
+  setInterval(() => lagerShopSenden(false), 120000);
+  addEventListener('online', () => lagerShopSenden(false));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) lagerShopSenden(false); });
   if (S.od.clientId) odInit().then(app => { if (app.getActiveAccount()) { odLoadArtikel(); } if (app.getActiveAccount()) { lagerSenden(); } if (app.getActiveAccount()) syncCloud(false).then(ok => { if (ok && !inv.saved && !inv.lines.length) { inv.nr = nextNr(inv.typ || 'rechnung'); renderHead(); saveDraft(); } }); }).catch(() => { });
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 })();
