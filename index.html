@@ -568,6 +568,27 @@ function bumpCounter(nr, typ = 'rechnung') {
   if (hasYear(typ) ? (y > z.jahr || (y === z.jahr && p.n > z.n)) : p.n > z.n) store.set('zaehler', { jahr: y, n: p.n });
 }
 
+/* ---------- Gemeinsamer Nummern-Zähler im Shop (damit PC und Handy nie dieselbe Nummer vergeben) ---------- */
+async function nrShop(aktion, wunsch) {
+  if (!shopZugang()) return null;
+  const y = new Date().getFullYear(), z = getCounter();
+  const res = await fetch(shopUrl('nummer'), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, cache: 'no-store',
+    body: JSON.stringify({ aktion, jahr: y, bekannt: z.jahr === y ? z.n : 0, wunsch: wunsch || 0, id: inv.id }) });
+  if (!res.ok) throw new Error(res.status === 403 ? 'Zugang falsch (Schlüssel prüfen)' : 'HTTP ' + res.status);
+  return res.json();
+}
+// zeigt im noch nicht gespeicherten Entwurf die nächste freie Nummer an (außer sie wurde von Hand eingetippt)
+async function nrAktualisieren() {
+  if (!inv || inv.saved || inv.nrManuell || inv.nrFix || !shopZugang() || store.get('verlauf', []).some(h => h.id === inv.id)) return;
+  try {
+    const r = await nrShop('zeigen');
+    if (r && r.naechste && !inv.saved && !inv.nrManuell) {
+      const nr = fmtNr(r.jahr, r.naechste, nrFormat(inv.typ || 'rechnung'));
+      if (nr !== inv.nr) { inv.nr = nr; $('#inv-nr').value = nr; saveDraft(); }
+    }
+  } catch (e) { }
+}
+
 /* ---------- Rechnung (Entwurf) ---------- */
 function blankInvoice() {
   return { id: uid(), nr: nextNr(), datum: today(), leistung: today(), kunde: {}, lines: [], skonto: { proz: S.skontoProz || '', tage: S.skontoTage }, rabatt: '', notiz: '', modus: S.preisModus, saved: false };
@@ -977,7 +998,7 @@ $('#inv-bezug').addEventListener('input', e => {
 function renderAll() { if (!$('#btn-save').dataset.txt) $('#btn-save').dataset.txt = $('#btn-save').textContent; renderHead(); renderLines(); renderKunden(); }
 function changed(structure) { inv.saved = false; if (structure) renderLines(); else updateTotals(); saveDraft(); }
 
-$('#inv-nr').addEventListener('input', e => { inv.nr = e.target.value.trim(); changed(false); });
+$('#inv-nr').addEventListener('input', e => { inv.nr = e.target.value.trim(); inv.nrManuell = true; changed(false); });
 $('#inv-datum').addEventListener('change', e => { const old = inv.datum; inv.datum = e.target.value || today(); if (!inv.leistung || inv.leistung === old) { inv.leistung = inv.datum; $('#inv-leistung').value = inv.datum; } changed(false); });
 $('#inv-leistung').addEventListener('change', e => { inv.leistung = e.target.value; changed(false); });
 $('#sk-proz').addEventListener('input', e => { inv.skonto.proz = e.target.value; changed(false); });
@@ -1068,10 +1089,11 @@ function showBigQR() {
 
 $('#btn-nextnr').onclick = async () => {
   await syncCloud(false);
-  inv.nr = nextNr(inv.typ || 'rechnung'); $('#inv-nr').value = inv.nr; changed(false);
+  inv.nr = nextNr(inv.typ || 'rechnung'); inv.nrManuell = false; $('#inv-nr').value = inv.nr; changed(false);
+  await nrAktualisieren();
 };
 $('#btn-new').onclick = () => {
-  const go = () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); syncCloud(false).then(r => { if (r && !inv.lines.length) { inv.nr = nextNr(inv.typ || 'rechnung'); $('#inv-nr').value = inv.nr; saveDraft(); } }); window.scrollTo({ top: 0 }); };
+  const go = () => { inv = blankInvoice(); store.set('draft', inv); renderAll(); nrAktualisieren(); syncCloud(false).then(r => { if (r && !inv.lines.length) { inv.nr = nextNr(inv.typ || 'rechnung'); $('#inv-nr').value = inv.nr; saveDraft(); nrAktualisieren(); } }); window.scrollTo({ top: 0 }); };
   if (!inv.saved && inv.lines.length) toast('Aktuelle Rechnung ist nicht gespeichert.', '', { label: 'Trotzdem neu', fn: go }); else go();
 };
 
@@ -1262,6 +1284,18 @@ $('#btn-share').onclick = async () => {
 };
 $('#btn-save').onclick = async () => {
   if (!validate()) return;
+  // Nummer beim Shop fest vergeben – nur für neue Rechnungen (schon gespeicherte behalten ihre Nummer)
+  if (shopZugang() && !inv.nrFix && !store.get('verlauf', []).some(h => h.id === inv.id)) {
+    try {
+      const f = nrFormat(inv.typ || 'rechnung'), p = parseNr(inv.nr, f);
+      const r = await nrShop('vergeben', p ? p.n : 0);
+      if (r && r.n) {
+        const neu = fmtNr(r.jahr, r.n, f);
+        if (neu !== inv.nr) { toast(`Nummer ${inv.nr} ist schon vergeben (anderes Gerät) – diese ${istGS(inv) ? 'Gutschrift' : 'Rechnung'} bekommt ${neu}.`, 'ok', null, 8000); inv.nr = neu; $('#inv-nr').value = neu; }
+        inv.nrFix = true; bumpCounter(inv.nr, inv.typ || 'rechnung'); saveDraft();
+      }
+    } catch (e) { toast('Nummern-Abgleich mit dem Shop nicht möglich (' + (e instanceof TypeError ? 'Shop nicht erreichbar' : e.message) + ') – bitte Nummer prüfen.', 'err', null, 8000); }
+  }
   const hist = store.get('verlauf', []);
   const dup = hist.find(h => h.nr === inv.nr && h.id !== inv.id);
   if (dup && !$('#btn-save').dataset.force) {
@@ -1316,13 +1350,13 @@ function renderHist() {
     el.addEventListener('click', e => {
       const a = e.target.dataset.a; if (!a) return;
       if (a === 'open') { inv = JSON.parse(JSON.stringify(h.inv)); store.set('draft', inv); renderAll(); $('#dlg-hist').close(); }
-      if (a === 'copy') { const n = JSON.parse(JSON.stringify(h.inv)); Object.assign(n, { id: uid(), nr: nextNr(n.typ || 'rechnung'), datum: today(), leistung: today(), saved: false }); n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); $('#dlg-hist').close(); toast('Kopie mit neuer Nummer ' + inv.nr + ' angelegt.'); }
+      if (a === 'copy') { const n = JSON.parse(JSON.stringify(h.inv)); Object.assign(n, { id: uid(), nr: nextNr(n.typ || 'rechnung'), datum: today(), leistung: today(), saved: false, nrFix: false, nrManuell: false }); n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); nrAktualisieren(); $('#dlg-hist').close(); toast('Kopie mit neuer Nummer ' + inv.nr + ' angelegt.'); }
       if (a === 'pdf') { download(buildPdf(h.inv).output('blob'), pdfName(h.inv)); }
       if (a === 'send') { $('#dlg-hist').close(); openSend(h.inv); }
       if (a === 'gs') {
         const n = JSON.parse(JSON.stringify(h.inv));
-        Object.assign(n, { id: uid(), typ: 'gutschrift', nr: nextNr(), datum: today(), leistung: h.inv.leistung || h.inv.datum, bezug: h.nr, bezugDatum: h.datum, saved: false, skonto: { proz: '', tage: S.skontoTage }, notiz: '' });
-        n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); $('#dlg-hist').close();
+        Object.assign(n, { id: uid(), typ: 'gutschrift', nr: nextNr(), nrFix: false, nrManuell: false, datum: today(), leistung: h.inv.leistung || h.inv.datum, bezug: h.nr, bezugDatum: h.datum, saved: false, skonto: { proz: '', tage: S.skontoTage }, notiz: '' });
+        n.lines.forEach(l => l.id = uid()); inv = n; store.set('draft', inv); renderAll(); nrAktualisieren(); $('#dlg-hist').close();
         toast(`Gutschrift ${inv.nr} zu Rechnung ${h.nr} angelegt – Positionen und Mengen anpassen, die nicht zurückkommen, entfernen.`, 'ok', null, 7000);
       }
       if (a === 'del') {
@@ -1683,9 +1717,10 @@ async function syncCloud(push) {
   loadFeed(false);
   lagerShopSenden(false);
   // offene Shop-Buchungen von selbst nachholen: alle 2 Minuten, sobald wieder Internet da ist und beim Zurückkehren in die App
-  setInterval(() => lagerShopSenden(false), 120000);
-  addEventListener('online', () => lagerShopSenden(false));
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) lagerShopSenden(false); });
+  setInterval(() => { lagerShopSenden(false); nrAktualisieren(); }, 120000);
+  addEventListener('online', () => { lagerShopSenden(false); nrAktualisieren(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { lagerShopSenden(false); nrAktualisieren(); } });
+  nrAktualisieren();
   if (S.od.clientId) odInit().then(app => { if (app.getActiveAccount()) { odLoadArtikel(); } if (app.getActiveAccount()) { lagerSenden(); } if (app.getActiveAccount()) syncCloud(false).then(ok => { if (ok && !inv.saved && !inv.lines.length) { inv.nr = nextNr(inv.typ || 'rechnung'); renderHead(); saveDraft(); } }); }).catch(() => { });
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 })();
