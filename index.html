@@ -458,7 +458,7 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
 <script src="vendor/papaparse.min.js"></script>
 <script>
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.3.0';
 const MSAL_URLS = ['https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js','https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js'];
 const XLSX_URLS = ['vendor/xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 const $ = (s, r = document) => r.querySelector(s);
@@ -565,7 +565,22 @@ function nextNr(typ = 'rechnung') {
 function bumpCounter(nr, typ = 'rechnung') {
   const p = parseNr(nr, nrFormat(typ)); if (!p) return;
   const y = p.jahr ?? new Date().getFullYear(); const z = getCounter(typ);
-  if (hasYear(typ) ? (y > z.jahr || (y === z.jahr && p.n > z.n)) : p.n > z.n) store.set('zaehler', { jahr: y, n: p.n });
+  if (hasYear(typ) ? (y > z.jahr || (y === z.jahr && p.n > z.n)) : p.n > z.n) store.set('zaehler', { jahr: y, n: p.n, reset: z.reset || 0 });
+}
+// Rechnungsnummer wurde im Shop zurückgesetzt (Test-/Fehlrechnung): Zähler zurück, ungültige Rechnungen aus dem Verlauf, offene Lagerbuchungen verwerfen
+function nrZurueckgesetzt(jahr, letzte, reset) {
+  const z = getCounter(); if ((z.reset || 0) >= reset) return;
+  store.set('zaehler', { jahr, n: letzte, reset });
+  const tomb = store.get('verlaufGeloescht', {}), weg = [];
+  store.set('verlauf', store.get('verlauf', []).filter(h => {
+    const p = parseNr(h.nr, nrFormat(h.inv?.typ || 'rechnung')); const ungueltig = p && (p.jahr ?? jahr) === jahr && p.n > letzte && (h.ts || 0) <= reset * 1000;
+    if (ungueltig) { tomb[h.nr] = reset * 1000; weg.push(h.nr); } return !ungueltig;
+  }));
+  store.set('verlaufGeloescht', tomb);
+  for (const k of ['lagerOffen', 'lagerOffenShop']) { const o = store.get(k, {}); weg.forEach(nr => delete o[nr]); store.set(k, o); }
+  if (inv && !inv.saved && !inv.nrManuell) { inv.nr = nextNr(inv.typ || 'rechnung'); inv.nrFix = false; const el = $('#inv-nr'); if (el) el.value = inv.nr; saveDraft(); }
+  if (typeof renderHist === 'function') { try { renderHist(); } catch (e) { } }
+  toast('Rechnungsnummer wurde zurückgesetzt – nächste Rechnung: ' + nextNr() + (weg.length ? ' (entfernt: ' + weg.join(', ') + ')' : ''), 'ok', null, 7000);
 }
 
 /* ---------- Gemeinsamer Nummern-Zähler im Shop (damit PC und Handy nie dieselbe Nummer vergeben) ---------- */
@@ -579,9 +594,11 @@ async function nrShop(aktion, wunsch) {
 }
 // zeigt im noch nicht gespeicherten Entwurf die nächste freie Nummer an (außer sie wurde von Hand eingetippt)
 async function nrAktualisieren() {
-  if (!inv || inv.saved || inv.nrManuell || inv.nrFix || !shopZugang() || store.get('verlauf', []).some(h => h.id === inv.id)) return;
+  if (!shopZugang()) return;
   try {
     const r = await nrShop('zeigen');
+    if (r && r.reset && r.reset > (getCounter().reset || 0)) nrZurueckgesetzt(r.jahr, r.letzte, r.reset);
+    if (!inv || inv.saved || inv.nrManuell || inv.nrFix || store.get('verlauf', []).some(h => h.id === inv.id)) return;
     if (r && r.naechste && !inv.saved && !inv.nrManuell) {
       const nr = fmtNr(r.jahr, r.naechste, nrFormat(inv.typ || 'rechnung'));
       if (nr !== inv.nr) { inv.nr = nr; $('#inv-nr').value = nr; saveDraft(); }
@@ -1506,7 +1523,11 @@ $('#btn-theme').onclick = () => {
 };
 function mergeData(d) {
   const z = getCounter(), dz = d.zaehler;
-  if (dz && (dz.jahr > z.jahr || (dz.jahr === z.jahr && dz.n > z.n))) store.set('zaehler', dz);
+  if (dz && (dz.reset || 0) > (z.reset || 0)) nrZurueckgesetzt(dz.jahr, dz.n, dz.reset);
+  else if (dz && (dz.reset || 0) === (z.reset || 0) && (dz.jahr > z.jahr || (dz.jahr === z.jahr && dz.n > z.n))) store.set('zaehler', dz);
+  const vTomb = store.get('verlaufGeloescht', {});
+  for (const [nr, t] of Object.entries(d.verlaufGeloescht || {})) if (!vTomb[nr] || t > vTomb[nr]) vTomb[nr] = t;
+  store.set('verlaufGeloescht', vTomb);
   const k = store.get('kunden', {}); let changedAny = false;
   const tomb = store.get('kundenGeloescht', {});
   for (const [key, t] of Object.entries(d.kundenGeloescht || {})) if (!tomb[key] || t > tomb[key]) tomb[key] = t;
@@ -1515,7 +1536,8 @@ function mergeData(d) {
   for (const [key, t] of Object.entries(tomb)) if (k[key] && (k[key].ts || 0) <= t) { delete k[key]; changedAny = true; }
   store.set('kunden', k);
   const byId = new Map(store.get('verlauf', []).map(h => [h.nr, h]));
-  for (const h of d.verlauf || []) { const cur = byId.get(h.nr); if (!cur || (h.ts || 0) > (cur.ts || 0)) { byId.set(h.nr, h); changedAny = true; } }
+  for (const h of d.verlauf || []) { if ((vTomb[h.nr] || 0) >= (h.ts || 0)) continue; const cur = byId.get(h.nr); if (!cur || (h.ts || 0) > (cur.ts || 0)) { byId.set(h.nr, h); changedAny = true; } }
+  for (const [nr, t] of Object.entries(vTomb)) { const cur = byId.get(nr); if (cur && (cur.ts || 0) <= t) { byId.delete(nr); changedAny = true; } }
   store.set('verlauf', [...byId.values()].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 500));
   return changedAny;
 }
@@ -1699,7 +1721,7 @@ async function syncCloud(push) {
     const r = await graph(sp);
     if (r.ok) mergeData(await r.json());
     if (push || !r.ok) {
-      const data = { app: 'preisflieger-rechnung', zaehler: getCounter(), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlauf: store.get('verlauf', []).slice(0, 300) };
+      const data = { app: 'preisflieger-rechnung', zaehler: getCounter(), kunden: store.get('kunden', {}), kundenGeloescht: store.get('kundenGeloescht', {}), verlaufGeloescht: store.get('verlaufGeloescht', {}), verlauf: store.get('verlauf', []).slice(0, 300) };
       await graph(sp, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     }
     renderKunden(); return true;
