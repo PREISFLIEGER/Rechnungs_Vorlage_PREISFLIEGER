@@ -222,6 +222,8 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
   input,select,textarea{font-size:16px!important}
 }
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .18s ease-out}@keyframes pop{from{transform:translateY(8px);opacity:0}}}
+.nr-warn{display:block;margin-top:5px;color:#b32d2e;font-size:12px;font-weight:700;line-height:1.3}
+.nr-warn[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -257,6 +259,7 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
     <div class="grid">
       <label class="f"><span id="lbl-nr">Rechnungsnummer</span>
         <span class="nr-wrap"><input id="inv-nr" class="in" autocomplete="off"><button class="btn" id="btn-nextnr" type="button" title="Nächste freie Nummer">+1</button></span>
+        <span id="nr-warn" class="nr-warn" hidden></span>
       </label>
       <label class="f"><span id="lbl-datum">Rechnungsdatum</span><input id="inv-datum" type="date"></label>
       <label class="f">Leistungs-/Lieferdatum<input id="inv-leistung" type="date"></label>
@@ -458,7 +461,7 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
 <script src="vendor/papaparse.min.js"></script>
 <script>
 'use strict';
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 const MSAL_URLS = ['https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js','https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js'];
 const XLSX_URLS = ['vendor/xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 const $ = (s, r = document) => r.querySelector(s);
@@ -593,17 +596,22 @@ async function nrShop(aktion, wunsch) {
   return res.json();
 }
 // zeigt im noch nicht gespeicherten Entwurf die nächste freie Nummer an (außer sie wurde von Hand eingetippt)
+// Warnung unter der Rechnungsnummer, wenn sie nicht mit dem Shop (= allen Geräten) abgeglichen ist
+let nrAbgleich = null;
+function nrWarnung(t) { const el = $('#nr-warn'); if (!el) return; el.textContent = t || ''; el.hidden = !t; }
+function nrNeu() { return inv && !inv.saved && !inv.nrFix && !store.get('verlauf', []).some(h => h.id === inv.id); }
 async function nrAktualisieren() {
-  if (!shopZugang()) return;
+  if (!shopZugang()) { nrAbgleich = 'fehlt'; nrWarnung(nrNeu() ? '⚠ Nummer nicht abgeglichen – Shop-Zugang fehlt (Einstellungen → Shop). Andere Geräte könnten dieselbe Nummer vergeben.' : ''); return; }
   try {
     const r = await nrShop('zeigen');
+    nrAbgleich = 'ok'; nrWarnung('');
     if (r && r.reset && r.reset > (getCounter().reset || 0)) nrZurueckgesetzt(r.jahr, r.letzte, r.reset);
     if (!inv || inv.saved || inv.nrManuell || inv.nrFix || store.get('verlauf', []).some(h => h.id === inv.id)) return;
     if (r && r.naechste && !inv.saved && !inv.nrManuell) {
       const nr = fmtNr(r.jahr, r.naechste, nrFormat(inv.typ || 'rechnung'));
       if (nr !== inv.nr) { inv.nr = nr; $('#inv-nr').value = nr; saveDraft(); }
     }
-  } catch (e) { }
+  } catch (e) { nrAbgleich = 'offline'; nrWarnung(nrNeu() ? '⚠ Nummer nicht abgeglichen – Shop gerade nicht erreichbar (Internet?).' : ''); }
 }
 
 /* ---------- Rechnung (Entwurf) ---------- */
@@ -1302,6 +1310,8 @@ $('#btn-share').onclick = async () => {
 $('#btn-save').onclick = async () => {
   if (!validate()) return;
   // Nummer beim Shop fest vergeben – nur für neue Rechnungen (schon gespeicherte behalten ihre Nummer)
+  const frag = () => confirm('Achtung: Die Rechnungsnummer ' + inv.nr + ' konnte NICHT mit dem Shop abgeglichen werden.\n\nEin anderes Gerät könnte dieselbe Nummer schon vergeben haben.\n\nTrotzdem mit dieser Nummer speichern?');
+  if (!shopZugang() && !inv.nrFix && !store.get('verlauf', []).some(h => h.id === inv.id)) { if (!frag()) return; }
   if (shopZugang() && !inv.nrFix && !store.get('verlauf', []).some(h => h.id === inv.id)) {
     try {
       const f = nrFormat(inv.typ || 'rechnung'), p = parseNr(inv.nr, f);
@@ -1311,7 +1321,7 @@ $('#btn-save').onclick = async () => {
         if (neu !== inv.nr) { toast(`Nummer ${inv.nr} ist schon vergeben (anderes Gerät) – diese ${istGS(inv) ? 'Gutschrift' : 'Rechnung'} bekommt ${neu}.`, 'ok', null, 8000); inv.nr = neu; $('#inv-nr').value = neu; }
         inv.nrFix = true; bumpCounter(inv.nr, inv.typ || 'rechnung'); saveDraft();
       }
-    } catch (e) { toast('Nummern-Abgleich mit dem Shop nicht möglich (' + (e instanceof TypeError ? 'Shop nicht erreichbar' : e.message) + ') – bitte Nummer prüfen.', 'err', null, 8000); }
+    } catch (e) { toast('Nummern-Abgleich mit dem Shop nicht möglich (' + (e instanceof TypeError ? 'Shop nicht erreichbar' : e.message) + ') – bitte Nummer prüfen.', 'err', null, 8000); if (!frag()) return; }
   }
   const hist = store.get('verlauf', []);
   const dup = hist.find(h => h.nr === inv.nr && h.id !== inv.id);
