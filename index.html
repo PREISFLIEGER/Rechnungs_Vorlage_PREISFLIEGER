@@ -224,6 +224,8 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
 @media (prefers-reduced-motion:no-preference){.toast{animation:pop .18s ease-out}@keyframes pop{from{transform:translateY(8px);opacity:0}}}
 .nr-warn{display:block;margin-top:5px;color:#b32d2e;font-size:12px;font-weight:700;line-height:1.3}
 .nr-warn[hidden]{display:none}
+.od-banner{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:12px 0 0;padding:10px 14px;border-radius:12px;background:#fdecea;border:2px solid #b32d2e;color:#8a1f1f;font-weight:700;font-size:14px}
+.od-banner[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -253,6 +255,7 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
 </header>
 
 <main>
+  <div id="od-banner" class="od-banner" hidden><span id="od-banner-text">⚠ Nicht mit OneDrive verbunden</span> <button class="btn small" id="btn-od-banner" type="button">Jetzt anmelden</button></div>
   <section>
     <h2><span id="typ-titel">Rechnung</span>
       <span class="typwahl" role="group" aria-label="Belegart"><button type="button" id="typ-rechnung" aria-pressed="true">Rechnung</button><button type="button" id="typ-gutschrift" aria-pressed="false">Gutschrift</button></span></h2>
@@ -461,7 +464,7 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
 <script src="vendor/papaparse.min.js"></script>
 <script>
 'use strict';
-const VERSION = '1.3.1';
+const VERSION = '1.3.2';
 const MSAL_URLS = ['https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js','https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js'];
 const XLSX_URLS = ['vendor/xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 const $ = (s, r = document) => r.querySelector(s);
@@ -1607,10 +1610,19 @@ async function odLogin() {
     toast('Anmeldung fehlgeschlagen: ' + (e.errorMessage || e.message), 'err', null, 8000);
   }
 }
+// Hinweis oben, wenn OneDrive nicht verbunden ist – mit Knopf zum sofortigen Anmelden
+async function odBanner() {
+  const el = $('#od-banner'), tx = $('#od-banner-text'), bt = $('#btn-od-banner'); if (!el) return;
+  if (!S.od.clientId) { tx.textContent = '⚠ OneDrive ist nicht eingerichtet – Rechnungen, Kunden und Verlauf werden nicht zwischen PC und Handy abgeglichen.'; bt.textContent = 'Einstellungen öffnen'; el.hidden = false; return; }
+  try { await odToken(); el.hidden = true; }
+  catch (e) { tx.textContent = '⚠ Nicht mit OneDrive verbunden' + (/abgelaufen/.test(e.message) ? ' (Anmeldung abgelaufen)' : '') + ' – Rechnungs-PDFs landen nicht in OneDrive, und PC/Handy werden nicht abgeglichen.'; bt.textContent = 'Jetzt anmelden'; el.hidden = false; }
+}
+$('#btn-od-banner').onclick = () => { if (!S.od.clientId) { renderSettings(); $('#dlg-set').showModal(); return; } msalP = null; odLogin(); };
 async function odStatus() {
   const el = $('#od-status'); if (!el) return;
   if (!S.od.clientId) { el.textContent = 'Nicht eingerichtet'; return; }
   try { const a = (await odInit()).getActiveAccount(); el.textContent = a ? 'Verbunden: ' + a.username : 'Nicht angemeldet'; } catch (e) { el.textContent = e.message; }
+  odBanner();
 }
 $('#btn-od-login').onclick = () => { if (!S.od.clientId) { toast('Zuerst die Client-ID eintragen (siehe Anleitung).', 'err'); return; } msalP = null; odLogin(); };
 $('#btn-od-logout').onclick = async () => { try { const app = await odInit(); const a = app.getActiveAccount(); if (a) await app.logoutPopup({ account: a }); } catch (e) { } msalP = null; odStatus(); };
@@ -1753,6 +1765,7 @@ async function syncCloud(push) {
   addEventListener('online', () => { lagerShopSenden(false); nrAktualisieren(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { lagerShopSenden(false); nrAktualisieren(); } });
   nrAktualisieren();
+  odBanner(); document.addEventListener('visibilitychange', () => { if (!document.hidden) odBanner(); });
   if (S.od.clientId) odInit().then(app => { if (app.getActiveAccount()) { odLoadArtikel(); } if (app.getActiveAccount()) { lagerSenden(); } if (app.getActiveAccount()) syncCloud(false).then(ok => { if (ok && !inv.saved && !inv.lines.length) { inv.nr = nextNr(inv.typ || 'rechnung'); renderHead(); saveDraft(); } }); }).catch(() => { });
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 })();
