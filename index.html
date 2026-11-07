@@ -464,7 +464,7 @@ dialog::backdrop{background:rgb(10 14 30 / .5)}
 <script src="vendor/papaparse.min.js"></script>
 <script>
 'use strict';
-const VERSION = '1.3.2';
+const VERSION = '1.3.3';
 const MSAL_URLS = ['https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js','https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js'];
 const XLSX_URLS = ['vendor/xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'];
 const $ = (s, r = document) => r.querySelector(s);
@@ -1645,16 +1645,18 @@ const SYNC_FILE = '_rechnungsapp-daten.json', ART_FILE = '_rechnungsapp-artikel.
 // Das Excel-Makro liest sie beim Öffnen und zählt die Mengen in der Spalte „Verkauf“ dazu.
 const LAGER_DATEI = '_lagerbuchungen.csv', LAGER_KOPF = 'Rechnung;Zeitpunkt;Artikelnummer;Menge;Bezeichnung';
 function lagerZeilen(x) {
-  const m = new Map();
-  for (const l of x.lines || []) {
-    const sku = String(l.sku || '').trim(), q = num(l.menge); if (!sku || !(q > 0)) continue;
-    const z = m.get(sku) || { sku, menge: 0, name: l.name || '' }; z.menge += q; m.set(sku, z);
+  // je Artikel: Menge und tatsächlicher Betrag brutto nach Positions- und Gesamtrabatt (für den Rohertrag im Shop)
+  const m = new Map(), c = compute(x), ku = !!S.kleinunternehmer, brutto = x.modus === 'brutto', gr = c.rabatt || 0;
+  for (const r of c.rows) {
+    const sku = String(r.sku || '').trim(), q = r.q; if (!sku || !(q > 0)) continue;
+    let b = r.total * (1 - gr / 100); if (!ku && !brutto) b = b * (1 + r.rate / 100);
+    const z = m.get(sku) || { sku, menge: 0, name: r.name || '', betrag: 0 }; z.menge += q; z.betrag = r2(z.betrag + b); m.set(sku, z);
   }
   return [...m.values()];
 }
 function lagerVormerken(x) {
   if (!x.nr || /^test/i.test(x.nr)) return;          // Test-Rechnungen buchen nichts
-  const zeilen = lagerZeilen(x); if (istGS(x)) zeilen.forEach(z => z.menge = -z.menge);   // Gutschrift: Verkauf wird wieder abgezogen
+  const zeilen = lagerZeilen(x); if (istGS(x)) zeilen.forEach(z => { z.menge = -z.menge; z.betrag = -z.betrag; });   // Gutschrift: Verkauf wird wieder abgezogen
   if (S.lagerExcel !== false) { const offen = store.get('lagerOffen', {}); offen[x.nr] = { ts: Date.now(), zeilen }; store.set('lagerOffen', offen); }
   if (S.shop?.buchen && shopZugang()) { const o2 = store.get('lagerOffenShop', {}); o2[x.nr] = { ts: Date.now(), zeilen }; store.set('lagerOffenShop', o2); }
 }
@@ -1673,7 +1675,7 @@ async function lagerShopSenden(melden = false) {
   shopLaeuft = true;
   try {
     const res = await fetch(shopUrl('rechnung'), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, cache: 'no-store',
-      body: JSON.stringify({ buchungen: nrs.map(nr => ({ nr, zeilen: offen[nr].zeilen.map(z => ({ sku: z.sku, menge: z.menge, name: z.name })) })) }) });
+      body: JSON.stringify({ buchungen: nrs.map(nr => ({ nr, zeilen: offen[nr].zeilen.map(z => ({ sku: z.sku, menge: z.menge, name: z.name, betrag: z.betrag })) })) }) });
     if (!res.ok) throw new Error(res.status === 403 ? 'Zugang falsch (Schlüssel prüfen)' : 'HTTP ' + res.status);
     const r = await res.json();
     const jetzt = store.get('lagerOffenShop', {});
